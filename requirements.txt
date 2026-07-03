@@ -1,0 +1,6 @@
+# Versions used for the paper (Python 3.11, CUDA 12.5, 1x NVIDIA A100 80GB).
+# Nearby versions are expected to work; exact numerical reproduction assumes these pins.
+torch==2.7.0
+numpy==1.26.4
+pandas==2.1.4
+matplotlib==3.8.0

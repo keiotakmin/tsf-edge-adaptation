@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# downloaded datasets (fetched by experiments/tsf_edge/data/get_data.sh; bdg2.csv is tracked)
+experiments/tsf_edge/data/ETTh1.csv
+experiments/tsf_edge/data/ETTh2.csv
+experiments/tsf_edge/data/ETTm1.csv
+experiments/tsf_edge/data/ETTm2.csv
+experiments/tsf_edge/data/appliances.csv
+
+# regenerable figure outputs (the paper's *_paper.pdf ARE tracked)
+results/tsf_edge/*.png
+results/tsf_edge/regime.pdf
+results/tsf_edge/frontier.pdf
+results/tsf_edge/warmup_confound.pdf
+results/tsf_edge/validation_protocol.pdf
+results/tsf_edge/staleness_frontier_*.pdf

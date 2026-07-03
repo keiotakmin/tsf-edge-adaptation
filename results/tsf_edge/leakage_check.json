@@ -1,0 +1,38 @@
+{
+  "ETTh2|patchtst": {
+    "leaky_static": 0.16296906395052738,
+    "leaky_adapted": 0.11895890409776348,
+    "leaky_benefit": 27.00522343683835,
+    "clean_static": 0.15876228868632028,
+    "clean_adapted": 0.14863449792012326,
+    "clean_benefit": 6.379216909758293,
+    "inflation_pt": 20.626006527080058
+  },
+  "appliances|patchtst": {
+    "leaky_static": 0.488393481016545,
+    "leaky_adapted": 0.1756120111125414,
+    "leaky_benefit": 64.04292482630571,
+    "clean_static": 0.4695688482383017,
+    "clean_adapted": 0.2572661225486846,
+    "clean_benefit": 45.212267910471674,
+    "inflation_pt": 18.830656915834034
+  },
+  "ETTh2|dlinear": {
+    "leaky_static": 0.146000646657258,
+    "leaky_adapted": 0.13468316346093887,
+    "leaky_benefit": 7.751666486030956,
+    "clean_static": 0.1413243425114708,
+    "clean_adapted": 0.1377201160282226,
+    "clean_benefit": 2.5503224845752706,
+    "inflation_pt": 5.201344001455686
+  },
+  "appliances|dlinear": {
+    "leaky_static": 0.23727722782840305,
+    "leaky_adapted": 0.22059458547426455,
+    "leaky_benefit": 7.030865332851598,
+    "clean_static": 0.2220876896776567,
+    "clean_adapted": 0.21891677092280412,
+    "clean_benefit": 1.4277778113027957,
+    "inflation_pt": 5.603087521548803
+  }
+}
