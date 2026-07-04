@@ -1,4 +1,4 @@
-"""(1) Turn C1 from a diagnostic into an IMPLEMENTABLE fair protocol.
+"""(1) Turn C1 from a diagnostic into an IMPLEMENTABLE fair protocol (Fable 1c).
 
 The oracle 'sweet spot' = argmin over warmup of the static TEST error uses test data (oracle
 early-stopping). A deployable protocol must pick the warmup budget WITHOUT the test set. We split

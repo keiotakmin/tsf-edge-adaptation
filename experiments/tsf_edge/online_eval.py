@@ -174,6 +174,8 @@ def warmup_model(backbone, L, H, C, d, n_warm, warmup_steps, lr=1e-3, device="cu
 VAL_FRAC = 0.2   # held-out most-recent pre-drift slice used for warmup early-stopping (C1 protocol)
 WARM_GRID = [200, 500, 1000, 2000, 4000, 8000, 20000]   # 20k covers the ETTm2/DLinear sweet spot;
                                                         # the old 8k cap censored 14/108 grid cells
+LR_GRID = [3e-6, 1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]   # online-LR rehearsal grid (M1
+                                                             # fair-LR protocol; lr_fairness.py)
 
 
 def val_mse(model, d, a, b, L, H):
@@ -184,6 +186,20 @@ def val_mse(model, d, a, b, L, H):
             errs.append(F.mse_loss(model(d[t - L:t].unsqueeze(0)), d[t:t + H].unsqueeze(0)).item())
         t += H
     return float(np.mean(errs))
+
+
+def select_online_lr(model, d, backbone, n_train, n_warm, L, H, strategy, lr_grid=None,
+                     device="cuda"):
+    """M1 fair-LR protocol: REHEARSE online adaptation (same score-then-adapt streaming) on the
+    held-out pre-drift validation slice at each candidate LR; return (best_lr, {lr: val MSE}).
+    Deployable -- no test data. Companion to `warm_and_select` (C1); a strategy's online LR must
+    be selected per deployment or the optimizer comparison is confounded (lr_fairness.py)."""
+    lr_grid = LR_GRID if lr_grid is None else lr_grid
+    d_val = d[:n_warm]                    # stream ends where the test region begins
+    scores = {lr: stream_eval(model, d_val, backbone, n_train, L, H, strategy, lr=lr,
+                              device=device)["mse"] for lr in lr_grid}
+    best = min(lr_grid, key=lambda x: scores[x] if scores[x] == scores[x] else float("inf"))
+    return best, scores
 
 
 def warm_and_select(backbone, L, H, C, d, n_train, n_warm, seed, warm_grid=None, lr=1e-3, bs=32):

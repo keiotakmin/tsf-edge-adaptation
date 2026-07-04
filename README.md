@@ -1,12 +1,13 @@
 # When Does Online Adaptation Pay on the Edge?
 
 Reproducibility package for *"When Does Online Adaptation Pay on the Edge? A Leakage-Free,
-Warmup-Fair Study of the Accuracy–Memory–Compute Frontier for Building-Energy Forecasting"*
-(under review, IEEE BigData 2026).
+Warmup- and Tuning-Fair Study of the Accuracy–Memory–Compute Frontier for Building-Energy
+Forecasting"* (under review, IEEE BigData 2026).
 
 This repository contains (a) the complete experiment harness, (b) the **result artifacts the
-paper is built from** (including the full 360-cell optimizer grid, `grid.jsonl`), and (c) the
-single-source pipeline that turns those artifacts into every number and figure in the paper.
+paper is built from** (including the full 360-cell optimizer grid `grid.jsonl` and the
+LR-fairness grid `lr_fairness.jsonl`), and (c) the single-source pipeline that turns those
+artifacts into every number and figure in the paper.
 
 ## Layout
 
@@ -23,7 +24,7 @@ figure is drawn from them; no hand-typed results anywhere:
 
 ```bash
 pip install -r requirements.txt
-python experiments/tsf_edge/gen_macros.py    # -> results/tsf_edge/macros.tex (260+ macros)
+python experiments/tsf_edge/gen_macros.py    # -> results/tsf_edge/macros.tex (380+ macros)
 python experiments/tsf_edge/paper_figs.py    # -> results/tsf_edge/*_paper.pdf (all 5 figures)
 ```
 
@@ -43,15 +44,19 @@ python experiments/tsf_edge/combined_grid.py # e.g. the 360-cell grid
 | Fig. 2 (C1c deployable protocol) | `validation_protocol.py` | `validation_protocol.json` | ~1 h |
 | C1b leak inflation numbers | `leakage_check.py` | `leakage_check.json` | ~10 min |
 | Fig. 3 (C2 frontier) | `frontier.py --recompute` | `frontier_data.json` | ~30 min |
-| Fig. 4 (staleness) | `staleness.py` | `staleness_patchtst.json` | ~15 min |
-| Fig. 5 + all C3 statistics | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
+| Fig. 4 (staleness, SGD + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
+| C3 default-rate statistics (the confound at scale) | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
+| Fig. 5 + Table `lrfair` (C3 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` | ~1.5 h per 36-cell slice |
 | Every number in the paper | `gen_macros.py` | `macros.tex` | seconds, no GPU |
 | Every figure in the paper | `paper_figs.py` | `*_paper.pdf` | seconds, no GPU |
 
 `grid.jsonl`: one JSON line per cell (6 datasets x 2 backbones x H in {24,48,96} x
 L in {96,192} x 5 seeds), with the fair-warmup selection, static/adapted results for
-full-SGD and full-Adam, optimizer-state bytes, and the three deploy-time probes
-(P1 noise, P2 gradient cosine, P3 drift).
+full-SGD and full-Adam, optimizer-state bytes, and the three optimizer-independent probes
+(P1 noise, P2 gradient cosine, P3 drift; P3 is post hoc — it uses the test region).
+`lr_fairness.jsonl`: one JSON line per cell with the full 8-point online-LR sweep
+(validation-rehearsal MSE + test MSE + benefit per rate, both optimizers) and the
+val-selected / test-oracle readings per optimizer.
 
 ## Protocol notes (what makes the evaluation fair)
 
@@ -61,6 +66,10 @@ full-SGD and full-Adam, optimizer-state bytes, and the three deploy-time probes
 - **Warmup-fair baselines**: the warmup budget is picked by early-stopping on a held-out
   pre-drift validation slice (`online_eval.py:warm_and_select`), never on test data. All
   downstream measurements share this one selection procedure.
+- **Tuning-fair optimizers**: each strategy's online learning rate is picked by *rehearsing*
+  online adaptation on the same pre-drift validation slice (`online_eval.py:select_online_lr`),
+  never on test data. `lr_fairness.py` shows that skipping this — running both optimizers at a
+  shared default rate — reverses the SGD-vs-Adam verdict (the paper's third confound).
 
 ## Environment
 

@@ -1,11 +1,11 @@
 """(3)+(4) combined grid: one sweep that yields BOTH the robustness/breadth evidence for C2
-and the regime-predictor validation data for C3. Per cell (dataset x backbone
+and the regime-predictor validation data for C3 (Fable Point 2). Per cell (dataset x backbone
 x L x H x seed) we:
   - pick a FAIR warmup by held-out pre-drift validation early-stopping, training the base model
     ONCE and reusing the min-val checkpoint for BOTH the SGD and Adam adaptation cells
     (warmup is optimizer-independent -> no blow-up);
   - measure honest benefit for full-SGD and full-Adam (+ optimizer-state bytes);
-  - measure THREE deploy-time probes, all optimizer-INDEPENDENT (no circularity):
+  - measure THREE deploy-time probes, all optimizer-INDEPENDENT (Fable Point 2, no circularity):
       P1 noise    = mean-over-channels variance of the stream's first difference (raw noise),
       P2 grad-cos = mean cosine of consecutive per-window gradients on the FROZEN base model
                     (gradient consistency; a high value ~ SGD-friendly, low ~ Adam-friendly),

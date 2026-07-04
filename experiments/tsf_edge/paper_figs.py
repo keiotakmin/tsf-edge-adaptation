@@ -108,23 +108,27 @@ def validation_protocol_paper():
 
 
 def frontier_paper():
-    """C2, 2x2 (datasets x {memory, compute}); styling constants shared with frontier.py."""
-    from frontier import COMBOS, DATASETS, pareto
+    """C2, 2x2 (datasets x {memory, compute}); styling constants shared with frontier.py.
+    Memory axis = adaptation memory (gradients + optimizer state), which separates full-Adam
+    (12 B/param) from full-SGD (4 B/param) at equal trainable-parameter count."""
+    from frontier import COMBOS, DATASETS, adapt_mem_bytes, pareto
     data = load("frontier_data.json")
     style = {lab: (mk, col) for _, _, lab, mk, col in COMBOS}
     fig, axes = plt.subplots(2, 2, figsize=(TEXTWIDTH, 5.2))
     for r, name in enumerate(DATASETS):
         rows = data[name]
-        for c, (xkey, xlab) in enumerate(
-                [("params", "trainable params (memory, $\\downarrow$ better)"),
-                 ("ms", "per-update compute (ms, $\\downarrow$ better)")]):
+        for c, (xget, xlab, xname) in enumerate(
+                [(adapt_mem_bytes,
+                  "adaptation memory: grads + opt. state (B, $\\downarrow$ better)", "memory"),
+                 (lambda row: row["ms"],
+                  "per-update compute (ms, $\\downarrow$ better)", "compute")]):
             ax = axes[r, c]
             for row in rows:
                 mk, col = style[row["label"]]
-                ax.scatter(row[xkey], row["benefit"], marker=mk, s=55, color=col,
+                ax.scatter(xget(row), row["benefit"], marker=mk, s=55, color=col,
                            edgecolor="k", lw=0.6, zorder=3)
-            if xkey == "params":
-                pf = pareto([(row["params"], row["benefit"]) for row in rows])
+            if xname == "memory":
+                pf = pareto([(xget(row), row["benefit"]) for row in rows])
                 ax.plot([p[0] for p in pf], [p[1] for p in pf], "--", color="0.5", lw=1.0,
                         zorder=1)
                 ax.set_xscale("log")
@@ -132,8 +136,7 @@ def frontier_paper():
             ax.set_xlabel(xlab)
             if c == 0:
                 ax.set_ylabel("adaptation benefit % ($\\uparrow$ better)")
-            ax.set_title(f"{PRETTY.get(name, name)}: quality vs "
-                         f"{'memory' if xkey == 'params' else 'compute'}")
+            ax.set_title(f"{PRETTY.get(name, name)}: quality vs {xname}")
             ax.grid(alpha=0.3)
     handles = [Line2D([0], [0], marker=mk, color="w", markerfacecolor=col,
                       markeredgecolor="k", markersize=6, label=lab)
@@ -146,87 +149,98 @@ def frontier_paper():
 
 
 def staleness_paper():
-    """Staleness, 1x3: online MSE vs update fraction, periodic vs drift-triggered."""
-    st = load("staleness_patchtst.json")
+    """Staleness, 2x3 ({full-SGD, full-Adam} x datasets), fair warmup + rehearsed LR:
+    online MSE vs update fraction, periodic vs drift-triggered. Two optimizer rows because
+    the drift-vs-periodic sign is small and optimizer-dependent (the demoted claim)."""
+    variants = [("full-SGD", load("staleness_patchtst.json"))]
+    adam_p = os.path.join(RES, "staleness_patchtst_full_adam.json")
+    if os.path.exists(adam_p):
+        variants.append(("full-Adam", json.load(open(adam_p))))
     names = ["ETTh2", "ETTm2", "appliances"]
-    fig, axes = plt.subplots(1, 3, figsize=(TEXTWIDTH, 2.0))
-    for ax, name in zip(axes, names):
-        d = st[name]
-        ax.axhline(d["static"], color="0.6", ls=":", lw=0.9, label="static (no adapt)")
-        ax.plot([u for u, _ in d["periodic"]], [m for _, m in d["periodic"]], "o-",
-                color="#1f77b4", label="periodic every-$k$")
-        ax.plot([u for u, _ in d["drift"]], [m for _, m in d["drift"]], "s-",
-                color="#d62728", label="drift-triggered")
-        win = d["win_pct"]
-        tag = "" if win is None else f"  (drift {win:+.1f}% @budget)"
-        ax.set_title(f"{PRETTY.get(name, name)}{tag}")
-        ax.set_xlabel("update fraction"); ax.grid(alpha=0.3)
-    axes[0].set_ylabel("online MSE")
-    axes[0].legend(frameon=False, loc="upper right")
+    fig, axes = plt.subplots(len(variants), 3, figsize=(TEXTWIDTH, 1.9 * len(variants)),
+                             squeeze=False)
+    for r, (vlab, st) in enumerate(variants):
+        for c, name in enumerate(names):
+            ax, d = axes[r][c], st[name]
+            ax.axhline(d["static"], color="0.6", ls=":", lw=0.9, label="static (no adapt)")
+            ax.plot([u for u, _ in d["periodic"]], [m for _, m in d["periodic"]], "o-",
+                    color="#1f77b4", label="periodic every-$k$")
+            ax.plot([u for u, _ in d["drift"]], [m for _, m in d["drift"]], "s-",
+                    color="#d62728", label="drift-triggered")
+            win = d["win_pct"]
+            tag = "" if win is None else f" (drift {win:+.1f}%)"
+            ax.set_title(f"{PRETTY.get(name, name)} $\\cdot$ {vlab}{tag}", fontsize=7)
+            if r == len(variants) - 1:
+                ax.set_xlabel("update fraction")
+            ax.grid(alpha=0.3)
+        axes[r][0].set_ylabel("online MSE")
+    axes[0][0].legend(frameon=False, loc="upper right")
     fig.tight_layout()
     save(fig, "staleness_paper")
 
 
 def regime_paper():
-    """C3, 1x2 from grid.jsonl: (A) winner in the drift x noise plane, (B) the asymmetry."""
-    rows = [json.loads(l) for l in open(os.path.join(RES, "grid.jsonl"))]
+    """C3 (v2), 1x2 from lr_fairness.jsonl — the online-LR default is a third confound:
+    (A) benefit vs LR, median+IQR (the two safety plateaus and the default's placement);
+    (B) per-cell benefit at the default vs at the val-rehearsed LR (Adam rescued)."""
+    rows = [json.loads(l) for l in open(os.path.join(RES, "lr_fairness.jsonl"))]
+    lrs = sorted(rows[0]["lrs"])
+    COLS = {"sgd": "#1f77b4", "adam": "#d62728"}
+    LABS = {"sgd": "full-SGD", "adam": "full-Adam"}
 
-    def winner(r):
-        return "SGD" if r["benefit_sgd"] >= r["benefit_adam"] else "Adam"
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.8))
+    for o in ("sgd", "adam"):
+        M = np.array([[r[o][f"{lr:g}"]["benefit"] for lr in lrs] for r in rows])
+        med, (q1, q3) = np.median(M, axis=0), np.percentile(M, [25, 75], axis=0)
+        axA.plot(lrs, med, "o-", color=COLS[o], label=f"{LABS[o]} (median)", zorder=3)
+        axA.fill_between(lrs, q1, q3, color=COLS[o], alpha=0.15)
+        for x, n in zip(lrs, (M < 0).sum(axis=0)):     # negative-cell counts along the curve
+            if n:
+                axA.annotate(f"{n}", (x, -64), color=COLS[o], fontsize=5.5, ha="center",
+                             va="bottom" if o == "sgd" else "top",
+                             xytext=(0, 1.5 if o == "sgd" else -1.5),
+                             textcoords="offset points")
+    axA.text(lrs[0], -64, "cells $<$ static:", fontsize=5.5, color="0.3", va="center")
+    axA.axhline(0, color="0.4", lw=0.8)
+    axA.axvline(1e-3, color="0.25", ls="--", lw=1.0)
+    axA.annotate("fixed default\n(the grid ran here)", (1e-3, 36), fontsize=6, ha="right",
+                 va="top", xytext=(-3, 0), textcoords="offset points")
+    axA.set_xscale("log"); axA.set_ylim(-70, 44)
+    axA.set_xlabel("online learning rate")
+    axA.set_ylabel("benefit % (median+IQR, 72 cells)")
+    axA.set_title("(A) LR safety plateaus vs the default")
+    axA.legend(loc="lower left", framealpha=0.9)
+    axA.grid(alpha=0.3, which="both")
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.9))
     for r in rows:
-        w, neg = winner(r), r["benefit_adam"] < 0
-        gap = r["benefit_adam"] - r["benefit_sgd"]
-        col = "#d62728" if w == "Adam" else "#1f77b4"
-        axA.scatter(r["p3_drift"], r["p1_noise"], marker="s" if w == "Adam" else "o",
-                    s=14 + 0.9 * abs(gap), c=col, edgecolors="black" if neg else col,
-                    linewidths=0.8 if neg else 0.3, alpha=0.8, zorder=3)
-    _ann = [r for r in rows if r["dataset"] == "ETTh1" and r["backbone"] == "patchtst"
-            and r["H"] == 96]
-    if _ann:
-        worst = min(x["benefit_adam"] for x in _ann)
-        axA.annotate(f"ETTh1/PatchTST: high drift + high\nnoise, yet Adam over-adapts ({worst:.0f}%)",
-                     (_ann[0]["p3_drift"], _ann[0]["p1_noise"]), xytext=(1.75, 0.145),
-                     fontsize=6, ha="left",
-                     arrowprops=dict(arrowstyle="->", color="black", lw=0.7))
-    axA.axvline(1.0, color="0.6", ls="--", lw=0.8)
-    axA.set_xlabel("P3  drift strength (static test / val MSE)")
-    axA.set_ylabel("P1  noise (first-diff. variance)")
-    axA.set_title("(A) which optimizer wins, drift $\\times$ noise")
-    axA.legend(handles=[
-        Line2D([], [], marker="o", color="w", markerfacecolor="#1f77b4", markersize=5,
-               label="SGD wins"),
-        Line2D([], [], marker="s", color="w", markerfacecolor="#d62728", markersize=5,
-               label="Adam wins"),
-        Line2D([], [], marker="s", color="w", markerfacecolor="#d62728",
-               markeredgecolor="black", markeredgewidth=0.9, markersize=5,
-               label="Adam $<$ static"),
-    ], loc="upper right", framealpha=0.9)
-    axA.grid(alpha=0.3)
-
-    bs = np.array([r["benefit_sgd"] for r in rows])
-    ba = np.array([r["benefit_adam"] for r in rows])
-    xj = np.random.default_rng(0).uniform(-0.13, 0.13, size=len(rows))
-    axB.scatter(0 + xj, bs, c="#1f77b4", s=6, alpha=0.6)
-    axB.scatter(1 + xj, ba, c="#d62728", s=6, alpha=0.6)
-    axB.axhline(0, color="0.4", lw=0.9)
-    axB.hlines(bs.min(), -0.25, 0.25, color="#1f77b4", lw=1.8)
-    axB.hlines(ba.min(), 0.75, 1.25, color="#d62728", lw=1.8)
-    axB.text(0, bs.min() - 4, f"SGD floor {bs.min():+.1f}%", ha="center", va="top",
-             fontsize=6.5, color="#1f77b4", fontweight="bold")
-    axB.text(1, ba.min() - 4, f"Adam worst {ba.min():+.1f}%", ha="center", va="top",
-             fontsize=6.5, color="#d62728", fontweight="bold")
-    axB.text(0.03, 0.97, f"{(ba < 0).sum()}/{len(rows)} Adam cells\nworse than static",
-             transform=axB.transAxes, ha="left", va="top", fontsize=6.5, color="#d62728",
-             bbox=dict(facecolor="white", alpha=0.85, edgecolor="none"))
-    axB.set_ylim(ba.min() - 13, max(bs.max(), ba.max()) + 4)
-    axB.set_xticks([0, 1])
-    axB.set_xticklabels(["full-SGD\n(0 optimizer state)", "full-Adam\n(2$\\times$ state)"],
-                        fontsize=6.5)
-    axB.set_ylabel("adaptation benefit % (fair warmup)")
-    axB.set_title("(B) SGD floor vs Adam negative tail")
-    axB.grid(alpha=0.3, axis="y")
+        mk = "o" if r["L"] == 96 else "^"
+        for o in ("sgd", "adam"):
+            axB.scatter(r[o]["0.001"]["benefit"], r[f"sel_benefit_{o}"], marker=mk, s=13,
+                        c=COLS[o], alpha=0.7, edgecolors="none", zorder=3)
+    lo, hi = -50, 62
+    axB.plot([lo, hi], [lo, hi], color="0.6", lw=0.7, ls=":")
+    axB.axhline(0, color="0.4", lw=0.8); axB.axvline(0, color="0.4", lw=0.8)
+    n_ad_fix = sum(r["adam"]["0.001"]["benefit"] < 0 for r in rows)
+    n_ad_sel = sum(r["sel_benefit_adam"] < 0 for r in rows)
+    n_sg_fix = sum(r["sgd"]["0.001"]["benefit"] < 0 for r in rows)
+    n_sg_sel = sum(r["sel_benefit_sgd"] < 0 for r in rows)
+    axB.text(0.03, 0.97, f"negative cells @default $\\to$ @rehearsed:\n"
+             f"Adam {n_ad_fix}/72 $\\to$ {n_ad_sel}/72;  SGD {n_sg_fix}/72 $\\to$ {n_sg_sel}/72",
+             transform=axB.transAxes, ha="left", va="top", fontsize=6,
+             bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7", lw=0.5))
+    axB.set_xlim(lo, hi); axB.set_ylim(-8, hi)
+    axB.set_xlabel("benefit % at the fixed default ($10^{-3}$)")
+    axB.set_ylabel("benefit % at rehearsed LR")
+    axB.set_title("(B) fair LR rescues Adam; SGD barely moves")
+    axB.legend(handles=[
+        Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgd"], markersize=4.5,
+               label="full-SGD"),
+        Line2D([], [], marker="s", color="w", markerfacecolor=COLS["adam"], markersize=4.5,
+               label="full-Adam"),
+        Line2D([], [], marker="o", color="w", markerfacecolor="0.5", markersize=4, label="L=96"),
+        Line2D([], [], marker="^", color="w", markerfacecolor="0.5", markersize=4, label="L=192"),
+    ], loc="lower right", framealpha=0.9)
+    axB.grid(alpha=0.3)
     fig.tight_layout()
     save(fig, "regime_paper")
 

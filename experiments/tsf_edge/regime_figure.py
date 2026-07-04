@@ -1,92 +1,102 @@
-"""C3 regime figure from grid.jsonl (dimensions read from the file). Two honest panels:
-  (A) the online-optimizer winner in the 2-D drift x noise plane -- shows Adam wins the
-      high-drift / moderate-noise corner but OVER-ADAPTS (goes negative) elsewhere, so drift alone
-      (P3) is not a clean 1-D threshold (the ETTh1 high-noise counterexample is annotated);
-  (B) the decisive asymmetry -- SGD's benefit never drops below ~0 (robust floor, zero optimizer
-      state) while Adam has a heavy negative tail (worse than static).
-Readable by construction: large fonts, explicit legend, annotated exceptions (addresses the earlier
-C2 legibility complaint).
+"""C3 figure (v2, 2026-07-05) — the ONLINE-LR DEFAULT is a third evaluation confound.
+Built from lr_fairness.jsonl (the M1 fair-LR grid: 72 cells = 6 datasets x 2 backbones x
+L in {96,192} x 3 seeds, H=24, 8-point LR grid, per-optimizer val-rehearsed LR). Two panels:
+  (A) adaptation benefit vs online LR (median + IQR across all cells): BOTH optimizers have an
+      LR safety plateau; the fixed default 1e-3 sits INSIDE SGD's plateau and OUTSIDE Adam's --
+      that placement, not optimizer intrinsics, manufactured the old "SGD safe / Adam
+      over-adapts" asymmetry of the 360-cell grid.
+  (B) per-cell benefit at the fixed default (x) vs at the val-rehearsed LR (y): Adam's
+      negative-at-default cells are rescued into the upper-left quadrant; SGD hugs the diagonal.
+The old drift x noise regime panel (grid.jsonl) is DEMOTED to text: it described where the
+default exits Adam's plateau, not which optimizer is better.
 """
 from __future__ import annotations
 import json, os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-rows = [json.loads(l) for l in open(os.path.join(ROOT, "results/tsf_edge/grid.jsonl"))]
-def winner(r): return "SGD" if r["benefit_sgd"] >= r["benefit_adam"] else "Adam"
+rows = [json.loads(l) for l in open(os.path.join(ROOT, "results/tsf_edge/lr_fairness.jsonl"))]
+LRS = sorted(rows[0]["lrs"])
+COL = {"sgd": "#1f77b4", "adam": "#d62728"}
+LAB = {"sgd": "full-SGD", "adam": "full-Adam"}
 
 fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5.2))
 
-# ---- Panel A: winner in the drift x noise plane ----
+# ---- Panel A: the two LR safety plateaus ----
+for o in ("sgd", "adam"):
+    M = np.array([[r[o][f"{lr:g}"]["benefit"] for lr in LRS] for r in rows])
+    med = np.median(M, axis=0)
+    q1, q3 = np.percentile(M, [25, 75], axis=0)
+    axA.plot(LRS, med, "o-", color=COL[o], lw=2, ms=6, label=f"{LAB[o]} (median)", zorder=3)
+    axA.fill_between(LRS, q1, q3, color=COL[o], alpha=0.15, label=f"{LAB[o]} IQR")
+    neg = (M < 0).sum(axis=0)
+    for x, n in zip(LRS, neg):                       # negative-cell counts along the curve
+        if n:
+            axA.annotate(f"{n}", (x, -66), color=COL[o], fontsize=8.5, ha="center",
+                         va="bottom" if o == "sgd" else "top",
+                         xytext=(0, 2 if o == "sgd" else -2), textcoords="offset points")
+axA.text(LRS[0], -66, "cells < static:", fontsize=8.5, color="0.3", ha="left", va="center")
+axA.axhline(0, color="0.4", lw=1)
+axA.axvline(1e-3, color="0.25", ls="--", lw=1.4)
+axA.annotate("the fixed default\n(360-cell grid ran here)", (1e-3, 38), fontsize=9.5,
+             ha="right", va="top", xytext=(-6, 0), textcoords="offset points", color="0.15")
+axA.set_xscale("log")
+axA.set_ylim(-72, 45)
+axA.set_xlabel("online learning rate", fontsize=11)
+axA.set_ylabel("adaptation benefit %  (median + IQR over 72 cells)", fontsize=11)
+axA.set_title("(A) Both optimizers have an LR safety plateau;\n"
+              "the default sits inside SGD's and outside Adam's", fontsize=12)
+axA.legend(fontsize=9, loc="lower left", framealpha=0.95)
+axA.grid(alpha=0.3, which="both")
+
+# ---- Panel B: per-cell rescue at the rehearsed LR ----
 for r in rows:
-    x, y = r["p3_drift"], r["p1_noise"]
-    w = winner(r)
-    gap = r["benefit_adam"] - r["benefit_sgd"]          # >0 => Adam better
-    adam_neg = r["benefit_adam"] < 0
-    m = "s" if w == "Adam" else "o"
-    col = "#d62728" if w == "Adam" else "#1f77b4"
-    edge = "black" if adam_neg else col
-    axA.scatter(x, y, marker=m, s=90 + 6 * abs(gap), c=col, edgecolors=edge,
-                linewidths=1.8 if adam_neg else 0.6, alpha=0.85, zorder=3)
-# annotate the sharp counterexample: ETTh1/patchtst (high drift AND high noise -> Adam over-adapts)
-_ann = [r for r in rows if r["dataset"] == "ETTh1" and r["backbone"] == "patchtst" and r["H"] == 96]
-if _ann:
-    r = _ann[0]                                              # annotate once (not once per seed)
-    worst = min(x["benefit_adam"] for x in _ann)
-    axA.annotate(f"ETTh1/PatchTST:\nhigh drift + high noise,\nyet Adam over-adapts ({worst:.0f}%)",
-                 (r["p3_drift"], r["p1_noise"]), xytext=(1.05, 0.165), fontsize=8.5,
-                 arrowprops=dict(arrowstyle="->", color="black", lw=1), ha="left")
-axA.axvline(1.0, color="0.6", ls="--", lw=1)
-axA.text(1.03, 0.135, "drift=1\n(test=val)", fontsize=8, color="0.4", rotation=90, va="center")
-axA.set_xlabel("P3  drift strength  (static test-MSE / val-MSE)", fontsize=11)
-axA.set_ylabel("P1  noise  (first-difference variance)", fontsize=11)
-axA.set_title("(A) Which optimizer wins, in the drift × noise plane", fontsize=12)
-from matplotlib.lines import Line2D
-axA.legend(handles=[
-    Line2D([], [], marker="o", color="w", markerfacecolor="#1f77b4", markersize=11, label="SGD wins"),
-    Line2D([], [], marker="s", color="w", markerfacecolor="#d62728", markersize=11, label="Adam wins"),
-    Line2D([], [], marker="s", color="w", markerfacecolor="#d62728", markeredgecolor="black",
-           markeredgewidth=1.8, markersize=11, label="Adam < static (over-adapt)"),
-], fontsize=9, loc="upper right", framealpha=0.95)
-axA.grid(alpha=0.3)
+    mk = "o" if r["L"] == 96 else "^"
+    for o in ("sgd", "adam"):
+        axB.scatter(r[o]["0.001"]["benefit"], r[f"sel_benefit_{o}"], marker=mk, s=48,
+                    c=COL[o], alpha=0.7, edgecolors="none", zorder=3)
+lo, hi = -50, 62
+axB.plot([lo, hi], [lo, hi], color="0.6", lw=1, ls=":")
+axB.axhline(0, color="0.4", lw=1)
+axB.axvline(0, color="0.4", lw=1)
+n_ad_fix = sum(r["adam"]["0.001"]["benefit"] < 0 for r in rows)
+n_ad_sel = sum(r["sel_benefit_adam"] < 0 for r in rows)
+n_sg_fix = sum(r["sgd"]["0.001"]["benefit"] < 0 for r in rows)
+n_sg_sel = sum(r["sel_benefit_sgd"] < 0 for r in rows)
+axB.text(0.02, 0.98, "rescued by LR rehearsal:\n"
+         f"Adam  {n_ad_fix}/72 neg @default → {n_ad_sel}/72\n"
+         f"SGD   {n_sg_fix}/72 neg @default → {n_sg_sel}/72",
+         transform=axB.transAxes, ha="left", va="top", fontsize=9.5,
+         bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7"))
+axB.set_xlim(lo, hi); axB.set_ylim(-8, hi)
+axB.set_xlabel("benefit % at the fixed default LR ($10^{-3}$)", fontsize=11)
+axB.set_ylabel("benefit % at the val-rehearsed LR", fontsize=11)
+axB.set_title("(B) Per-cell effect of fair LR selection:\nAdam is rescued, SGD barely moves",
+              fontsize=12)
+axB.legend(handles=[
+    Line2D([], [], marker="s", color="w", markerfacecolor=COL["sgd"], markersize=10, label="full-SGD"),
+    Line2D([], [], marker="s", color="w", markerfacecolor=COL["adam"], markersize=10, label="full-Adam"),
+    Line2D([], [], marker="o", color="w", markerfacecolor="0.5", markersize=9, label="L=96"),
+    Line2D([], [], marker="^", color="w", markerfacecolor="0.5", markersize=9, label="L=192"),
+    Line2D([], [], ls=":", color="0.6", label="y = x"),
+], fontsize=9, loc="lower right", framealpha=0.95)
+axB.grid(alpha=0.3)
 
-# ---- Panel B: the asymmetry -- SGD floor vs Adam negative tail ----
-bs = np.array([r["benefit_sgd"] for r in rows])
-ba = np.array([r["benefit_adam"] for r in rows])
-xj = np.random.default_rng(0).uniform(-0.13, 0.13, size=len(rows))
-axB.scatter(0 + xj, bs, c="#1f77b4", s=45, alpha=0.75, label="full-SGD")
-axB.scatter(1 + xj, ba, c="#d62728", s=45, alpha=0.75, label="full-Adam")
-axB.axhline(0, color="0.4", lw=1.2, ls="-")
-axB.hlines(bs.min(), -0.25, 0.25, color="#1f77b4", lw=2.5)
-axB.hlines(ba.min(), 0.75, 1.25, color="#d62728", lw=2.5)
-axB.text(0, bs.min() - 4, f"SGD floor {bs.min():+.1f}%", ha="center", va="top", fontsize=9,
-         color="#1f77b4", fontweight="bold")
-axB.text(1, ba.min() - 4, f"Adam worst {ba.min():+.1f}%", ha="center", va="top", fontsize=9,
-         color="#d62728", fontweight="bold")
-axB.text(0.02, 0.98, f"{(ba<0).sum()}/{len(rows)} Adam cells\nworse than static",
-         transform=axB.transAxes, ha="left", va="top", fontsize=9, color="#d62728",
-         bbox=dict(facecolor="white", alpha=0.85, edgecolor="none"))
-axB.set_ylim(ba.min() - 12, max(bs.max(), ba.max()) + 4)
-axB.set_xticks([0, 1]); axB.set_xticklabels(["full-SGD\n(0 optimizer state)", "full-Adam\n(2× state)"], fontsize=10)
-axB.set_ylabel("adaptation benefit % (fair warmup)", fontsize=11)
-axB.set_title("(B) The recipe asymmetry: SGD never diverges, Adam has a heavy negative tail", fontsize=11.5)
-axB.grid(alpha=0.3, axis="y")
-
-_ds, _bb = len({r["dataset"] for r in rows}), len({r["backbone"] for r in rows})
-_hs = ",".join(str(h) for h in sorted({r["H"] for r in rows}))
-_ls = ",".join(str(l) for l in sorted({r["L"] for r in rows}))
+_ds = len({r["dataset"] for r in rows})
 _sd = len({r["seed"] for r in rows})
-fig.suptitle(f"C3 regime analysis ({len(rows)} cells = {_ds} datasets × {_bb} backbones × "
-             f"H∈{{{_hs}}} × L∈{{{_ls}}} × {_sd} seeds): "
-             "P3-drift is the best single indicator but the split is 2-D; SGD is the safe default",
+fig.suptitle(f"C3: the online-LR default is a third evaluation confound "
+             f"({len(rows)} cells = {_ds} datasets × 2 backbones × L∈{{96,192}} × {_sd} seeds, "
+             "H=24; per-optimizer LR rehearsed on the pre-drift validation slice)",
              fontsize=11.5)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 out = os.path.join(ROOT, "results", "tsf_edge")
 for ext in ("png", "pdf"):
     fig.savefig(os.path.join(out, f"regime.{ext}"), dpi=150, bbox_inches="tight")
 print("saved", os.path.join(out, "regime.png"))
-print(f"SGD wins {sum(winner(r)=='SGD' for r in rows)}, Adam wins {sum(winner(r)=='Adam' for r in rows)}; "
-      f"SGD floor {bs.min():+.1f}%, Adam worst {ba.min():+.1f}%, Adam-negative {(ba<0).sum()}/{len(rows)}")
+sel_gap = np.mean([r["sel_benefit_adam"] - r["sel_benefit_sgd"] for r in rows])
+print(f"pooled: Adam neg @default {n_ad_fix}/72 -> @rehearsed {n_ad_sel}/72; "
+      f"mean sel gap Adam-SGD {sel_gap:+.2f} pt")

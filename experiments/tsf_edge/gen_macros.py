@@ -4,8 +4,13 @@ paper does `\\input{macros.tex}` and cites only macros.
 
 Sources (missing optional files are skipped with a warning):
   grid.jsonl                 C3 grid (required)  — benefit% sign: >0 = adaptation BETTER
+                                                   (fixed default online LR 1e-3: the confound)
+  lr_fairness.jsonl          M1 LR-fairness      — benefit% sign: >0 = adaptation BETTER;
+                                                   readings Fixed(@1e-3)/Sel(val-rehearsed)/Orc
   frontier_data.json         C2 frontier         — benefit% sign: >0 = adaptation BETTER
+                                                   (fair LR; BenefitFixed = old fixed-1e-3)
   staleness_patchtst.json    staleness (optional)— win% sign: >0 = drift-trigger BETTER
+  staleness_patchtst_full_adam.json               — full-Adam variant (StalAdam* macros)
   leakage_check.json         C1b (optional)      — benefit% sign: >0 = adaptation BETTER;
                                                    inflation pt = leaky - clean
   warmup_confound.json       C1a (optional)      — benefit% sign: <0 = adaptation BETTER
@@ -153,6 +158,55 @@ for ds in sorted({r["dataset"] for r in rows}):             # dataset x L cells 
         emit(b + "AdamWins", sum(winner(r) == "Adam" for r in sub))
         emit(b + "AdamNegCells", sum(r["benefit_adam"] < 0 for r in sub))
 
+# ---------- M1 LR-fairness grid ----------
+lrf_path = os.path.join(RES, "lr_fairness.jsonl")
+if os.path.exists(lrf_path):
+    lrf = [json.loads(l) for l in open(lrf_path)]
+    section("M1 LR-fairness (lr_fairness.jsonl); benefit% >0 = adaptation better; readings: "
+            "Fixed = @1e-3 default, Sel = val-rehearsed LR, Orc = test-oracle LR")
+    LRNAME = {3e-06: "ThreeEMinusSix", 1e-05: "OneEMinusFive", 3e-05: "ThreeEMinusFive",
+              1e-04: "OneEMinusFour", 3e-04: "ThreeEMinusFour", 1e-03: "OneEMinusThree",
+              3e-03: "ThreeEMinusThree", 1e-02: "OneEMinusTwo"}
+    emit("LrCells", len(lrf))
+    emit("LrGridPoints", len(lrf[0]["lrs"]))
+    emit("LrSeeds", len({r["seed"] for r in lrf}))
+    readings = {"Fixed": lambda r, o: r[o]["0.001"]["benefit"],
+                "Sel":   lambda r, o: r[f"sel_benefit_{o}"],
+                "Orc":   lambda r, o: r[f"oracle_benefit_{o}"]}
+    for Lv in sorted({r["L"] for r in lrf}):                # per-lookback three-reading stats
+        sub = [r for r in lrf if r["L"] == Lv]
+        base = texname("Lr", "L", Lv)
+        emit(base + "Cells", len(sub))
+        for rd, get in readings.items():
+            b_s = [get(r, "sgd") for r in sub]
+            b_a = [get(r, "adam") for r in sub]
+            b = base + rd
+            emit(b + "SgdWins", sum(s >= a for s, a in zip(b_s, b_a)))
+            emit(b + "AdamWins", sum(a > s for s, a in zip(b_s, b_a)))
+            emit(b + "SgdNegCells", sum(x < 0 for x in b_s))
+            emit(b + "SgdMin", s1(min(b_s)))
+            emit(b + "AdamNegCells", sum(x < 0 for x in b_a))
+            emit(b + "AdamNegPct", round(100 * sum(x < 0 for x in b_a) / len(b_a)))
+            emit(b + "AdamMin", s1(min(b_a)))
+            emit(b + "MeanGapPt", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(sub)))
+    for lr in sorted(lrf[0]["lrs"]):                        # pooled per-LR plateau statistics
+        for o in ("sgd", "adam"):
+            vals = [r[o][f"{lr:g}"]["benefit"] for r in lrf]
+            b = texname("Lr", o) + "At" + LRNAME[lr]
+            emit(b + "NegCells", sum(v < 0 for v in vals))
+            emit(b + "Mean", s1(sum(vals) / len(vals)))
+            emit(b + "Min", s1(min(vals)))
+    # selection behaviour (pooled over all cells)
+    emit("LrAdamSelLeqThreeEMinusFourCells", sum(r["sel_lr_adam"] <= 3e-4 for r in lrf))
+    emit("LrAdamSelGeqOneEMinusThreeCells", sum(r["sel_lr_adam"] >= 1e-3 for r in lrf))
+    emit("LrSgdSelGeqOneEMinusThreeCells", sum(r["sel_lr_sgd"] >= 1e-3 for r in lrf))
+    emit("LrSgdSelNegCellsAll", sum(r["sel_benefit_sgd"] < 0 for r in lrf))
+    emit("LrSgdSelMinAll", s1(min(r["sel_benefit_sgd"] for r in lrf)))
+    emit("LrSelAdamNegCellsAll", sum(r["sel_benefit_adam"] < 0 for r in lrf))
+    emit("LrSelAdamMinAll", s1(min(r["sel_benefit_adam"] for r in lrf)))
+else:
+    warnings.append("missing lr_fairness.jsonl (run lr_fairness.py to include these macros)")
+
 # ---------- C2 frontier ----------
 fro = load_optional("frontier_data.json")
 if fro:
@@ -170,6 +224,8 @@ if fro:
             energies.append(r["ms"] * P_EDGE_W)
             if "warmup" in r:
                 emit(b + "Warmup", r["warmup"])
+            if "benefit_fixed" in r:                        # the old fixed-1e-3 reading, kept
+                emit(b + "BenefitFixed", s1(r["benefit_fixed"]))   # for the confound narrative
         full, calib = params.get("PatchTST full·SGD"), params.get("PatchTST calib·SGD")
         if full and calib:
             emit(texname("Fro", ds) + "FullOverCalibParams", f1(full / calib))
@@ -187,6 +243,14 @@ if stal:
         emit(b + "Warm", r["warm"])
         emit(b + "StaticMse", f4(r["static"]))
         emit(b + "BestMse", f4(r["best"]))
+
+stal_a = load_optional("staleness_patchtst_full_adam.json")
+if stal_a:
+    section("staleness, full-Adam variant (staleness_patchtst_full_adam.json)")
+    for ds, r in stal_a.items():
+        b = texname("Stal", "Adam", ds)
+        if r["win_pct"] is not None:
+            emit(b + "WinPct", s1(r["win_pct"]))
 
 # ---------- C1a warmup confound ----------
 wc = load_optional("warmup_confound.json")
