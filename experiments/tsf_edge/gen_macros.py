@@ -91,6 +91,8 @@ emit("GridCells", len(rows))
 emit("GridSeeds", len({r["seed"] for r in rows}))
 emit("GridDatasets", len({r["dataset"] for r in rows}))
 emit("GridSgdFloor", s1(min(bs)))
+emit("GridSgdFloorExact", s1(min(bs), nd=2))         # +0.03 before the 1-dp rounding (minor 4)
+emit("GridSgdNearZeroCells", sum(abs(b) < 0.05 for b in bs))
 emit("GridSgdNegCells", sum(b < 0 for b in bs))
 emit("GridAdamWorst", s1(min(ba)))
 emit("GridAdamNegCells", sum(b < 0 for b in ba))
@@ -161,9 +163,12 @@ for ds in sorted({r["dataset"] for r in rows}):             # dataset x L cells 
 # ---------- M1 LR-fairness grid ----------
 lrf_path = os.path.join(RES, "lr_fairness.jsonl")
 if os.path.exists(lrf_path):
-    lrf = [json.loads(l) for l in open(lrf_path)]
+    lrf_all = [json.loads(l) for l in open(lrf_path)]
+    core = set(cg.DATASETS)                 # exclude M5 extras (bdg2_fox etc.) from C3 stats
+    lrf = [r for r in lrf_all if r["dataset"] in core]
     section("M1 LR-fairness (lr_fairness.jsonl); benefit% >0 = adaptation better; readings: "
-            "Fixed = @1e-3 default, Sel = val-rehearsed LR, Orc = test-oracle LR")
+            "Fixed = @1e-3 default, Sel = val-rehearsed LR, Orc = test-oracle LR; "
+            "Lr* = the FULL fair-LR grid (6 ds x 2 bb x H in {24,48,96} x L in {96,192} x 5 seeds)")
     LRNAME = {3e-06: "ThreeEMinusSix", 1e-05: "OneEMinusFive", 3e-05: "ThreeEMinusFive",
               1e-04: "OneEMinusFour", 3e-04: "ThreeEMinusFour", 1e-03: "OneEMinusThree",
               3e-03: "ThreeEMinusThree", 1e-02: "OneEMinusTwo"}
@@ -204,6 +209,36 @@ if os.path.exists(lrf_path):
     emit("LrSgdSelMinAll", s1(min(r["sel_benefit_sgd"] for r in lrf)))
     emit("LrSelAdamNegCellsAll", sum(r["sel_benefit_adam"] < 0 for r in lrf))
     emit("LrSelAdamMinAll", s1(min(r["sel_benefit_adam"] for r in lrf)))
+    # pooled three-reading win counts (abstract/intro cite these)
+    for rd, get in readings.items():
+        b_s = [get(r, "sgd") for r in lrf]
+        b_a = [get(r, "adam") for r in lrf]
+        emit("Lr" + rd + "SgdWinsAll", sum(s >= a for s, a in zip(b_s, b_a)))
+        emit("Lr" + rd + "AdamWinsAll", sum(a > s for s, a in zip(b_s, b_a)))
+        emit("Lr" + rd + "MeanGapPtAll", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(lrf)))
+    for Hv in sorted({r["H"] for r in lrf}):                # per-horizon robustness (compact)
+        sub = [r for r in lrf if r["H"] == Hv]
+        b = texname("Lr", "H", Hv)
+        emit(b + "Cells", len(sub))
+        emit(b + "SelAdamWins", sum(r["sel_benefit_adam"] > r["sel_benefit_sgd"] for r in sub))
+        emit(b + "SelAdamNegCells", sum(r["sel_benefit_adam"] < 0 for r in sub))
+    # M5: BDG2 extension subsets (fair-LR H24/L96/3-seed cells; NOT part of the C3 stats)
+    extras = sorted({r["dataset"] for r in lrf_all} - core)
+    if extras:
+        section("M5 BDG2 extension subsets (lr_fairness.jsonl extras); SelBest = per-seed "
+                "max(sel_sgd, sel_adam), i.e. the fair benefit of the better online optimizer")
+        ref = [r for r in lrf if r["dataset"] == "bdg2" and r["H"] == 24 and r["L"] == 96
+               and r["seed"] < 3]
+        pools = [("bdg2", ref)] + [(ds, [r for r in lrf_all if r["dataset"] == ds])
+                                   for ds in extras]
+        for ds, sub in pools:
+            for bb in sorted({r["backbone"] for r in sub}):
+                cells = [max(r["sel_benefit_sgd"], r["sel_benefit_adam"])
+                         for r in sub if r["backbone"] == bb]
+                b = texname("MFive", ds, bb)
+                emit(b + "SelBestMean", s1(sum(cells) / len(cells)))
+                emit(b + "SelBestMin", s1(min(cells)))
+                emit(b + "SelBestMax", s1(max(cells)))
 else:
     warnings.append("missing lr_fairness.jsonl (run lr_fairness.py to include these macros)")
 
@@ -255,28 +290,71 @@ if stal_a:
 # ---------- C1a warmup confound ----------
 wc = load_optional("warmup_confound.json")
 if wc:
-    section("C1a warmup confound (warmup_confound.json); benefit% <0 = adaptation better (Table 1 sign)")
+    section("C1a warmup confound (warmup_confound.json); values NEGATED to the paper-wide "
+            "positive-good convention (improvement% >0 = adaptation better; minor 1). "
+            "InflPt = improvement minus sweet-spot improvement (>0 = benefit INFLATED)")
+    n_under_infl = n_over_infl = 0
     for key, r in wc.items():
         b = texname("Wc", *key.split("|"))
-        emit(b + "Under", s1(r["under"]))
-        emit(b + "Sweet", s1(r["sweet"]))
-        emit(b + "Over", s1(r["over"]))
+        emit(b + "Under", s1(-r["under"]))
+        emit(b + "Sweet", s1(-r["sweet"]))
+        emit(b + "Over", s1(-r["over"]))
         emit(b + "SweetStep", r["sweet_step"])
+        j = r["sweet_idx"]
+        emit(b + "UnderStd", f1(r["benefit_std"][0]))
+        emit(b + "SweetStd", f1(r["benefit_std"][j]))
+        emit(b + "OverStd", f1(r["benefit_std"][-1]))
+        u_infl = -(r["under"] - r["sweet"])              # >0 = under-warming inflates
+        o_infl = -(r["over"] - r["sweet"])               # >0 = over-warming inflates
+        emit(b + "UnderInflPt", s1(u_infl))
+        emit(b + "OverInflPt", s1(o_infl))
+        n_under_infl += u_infl > 0
+        n_over_infl += o_infl > 0
+    emit("WcSettings", len(wc))
+    emit("WcUnderInflatedCount", n_under_infl)           # 5/6: Appliances/PatchTST is a tie
+    emit("WcOverInflatedCount", n_over_infl)             # 6/6 on the seed-mean
+
+# ---------- M6: warmup confound across strategies ----------
+m6 = load_optional("m6_strategies.json")
+if m6:
+    section("M6 strategy-generality of the warmup confound (m6_strategies.json); "
+            "improvement% >0 = adaptation better; InflPt >0 = benefit inflated vs sweet spot")
+    for key, e in m6.items():
+        ds = key.split("|")[0]
+        emit(texname("MSix", ds) + "SweetStep", e["sweet_step"])
+        for strat, s in e["strategies"].items():
+            b = texname("MSix", ds, strat)
+            emit(b + "Under", s1(s["under"]))
+            emit(b + "Sweet", s1(s["sweet"]))
+            emit(b + "Over", s1(s["over"]))
+            emit(b + "UnderInflPt", s1(s["under_infl"]))
+            emit(b + "OverInflPt", s1(s["over_infl"]))
 
 # ---------- C1b leakage check ----------
 lk = load_optional("leakage_check.json")
 if lk:
     section("C1b leakage check (leakage_check.json); benefit% >0 = adaptation better; "
-            "inflation pt = leaky benefit - clean benefit")
-    infl = []
+            "leak pt = leaky - delayed (the leak proper, M3); evalset pt = delayed - clean; "
+            "inflation pt = leaky - clean (their sum)")
+    infl, leak, evs = [], [], []
     for key, r in lk.items():
         b = texname("Lk", *key.split("|"))
         emit(b + "Leaky", s1(r["leaky_benefit"]))
         emit(b + "Clean", s1(r["clean_benefit"]))
         emit(b + "InflationPt", s1(r["inflation_pt"]))
         infl.append(r["inflation_pt"])
+        if "delayed_benefit" in r:                       # 3-arm decomposition (referee M3)
+            emit(b + "Delayed", s1(r["delayed_benefit"]))
+            emit(b + "LeakPt", s1(r["leak_pt"]))
+            emit(b + "EvalsetPt", s1(r["evalset_pt"]))
+            leak.append(r["leak_pt"]); evs.append(r["evalset_pt"])
     emit("LkInflationMinPt", s1(min(infl)))
     emit("LkInflationMaxPt", s1(max(infl)))
+    if leak:
+        emit("LkLeakMinPt", s1(min(leak)))
+        emit("LkLeakMaxPt", s1(max(leak)))
+        emit("LkEvalsetMinPt", s1(min(evs)))
+        emit("LkEvalsetMaxPt", s1(max(evs)))
 
 # ---------- C1c validation protocol ----------
 vp = load_optional("validation_protocol.json")

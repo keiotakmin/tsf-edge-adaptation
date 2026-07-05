@@ -61,15 +61,16 @@ def warmup_confound_paper():
             if r == 1:
                 ax.set_xlabel("warmup steps")
             ax2 = ax.twinx()
-            bm, bs = np.array(d["benefit_mean"]), np.array(d["benefit_std"])
-            ax2.plot(m, bm, "^--", color="#d62728", lw=1.0, ms=2.5)
-            ax2.fill_between(m, bm - bs, bm + bs, color="#d62728", alpha=0.12)
+            # paper-wide positive-good sign convention (minor 1): improvement = -benefit
+            im, ist = -np.array(d["benefit_mean"]), np.array(d["benefit_std"])
+            ax2.plot(m, im, "^--", color="#d62728", lw=1.0, ms=2.5)
+            ax2.fill_between(m, im - ist, im + ist, color="#d62728", alpha=0.12)
             ax2.tick_params(axis="y", labelcolor="#d62728", labelsize=6)
             if c == len(datasets) - 1:
-                ax2.set_ylabel("adaptation benefit %", color="#d62728")
+                ax2.set_ylabel("adaptation improvement %", color="#d62728")
     handles, _ = axes[0, 0].get_legend_handles_labels()
     handles.append(Line2D([], [], color="#d62728", ls="--", marker="^", ms=2.5,
-                          label="benefit % (right axis)"))
+                          label="improvement % (right axis, higher = larger apparent benefit)"))
     fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.05),
                frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 0.985))
@@ -184,6 +185,10 @@ def regime_paper():
     (A) benefit vs LR, median+IQR (the two safety plateaus and the default's placement);
     (B) per-cell benefit at the default vs at the val-rehearsed LR (Adam rescued)."""
     rows = [json.loads(l) for l in open(os.path.join(RES, "lr_fairness.jsonl"))]
+    core = {"appliances", "bdg2", "ETTm2", "ETTh2", "ETTm1", "ETTh1"}
+    # the FULL fair-LR grid (bdg2_* M5 extension subsets excluded from C3 stats)
+    rows = [r for r in rows if r["dataset"] in core]
+    n = len(rows)
     lrs = sorted(rows[0]["lrs"])
     COLS = {"sgd": "#1f77b4", "adam": "#d62728"}
     LABS = {"sgd": "full-SGD", "adam": "full-Adam"}
@@ -207,7 +212,7 @@ def regime_paper():
                  va="top", xytext=(-3, 0), textcoords="offset points")
     axA.set_xscale("log"); axA.set_ylim(-70, 44)
     axA.set_xlabel("online learning rate")
-    axA.set_ylabel("benefit % (median+IQR, 72 cells)")
+    axA.set_ylabel(f"benefit % (median+IQR, {n} cells)")
     axA.set_title("(A) LR safety plateaus vs the default")
     axA.legend(loc="lower left", framealpha=0.9)
     axA.grid(alpha=0.3, which="both")
@@ -225,7 +230,7 @@ def regime_paper():
     n_sg_fix = sum(r["sgd"]["0.001"]["benefit"] < 0 for r in rows)
     n_sg_sel = sum(r["sel_benefit_sgd"] < 0 for r in rows)
     axB.text(0.03, 0.97, f"negative cells @default $\\to$ @rehearsed:\n"
-             f"Adam {n_ad_fix}/72 $\\to$ {n_ad_sel}/72;  SGD {n_sg_fix}/72 $\\to$ {n_sg_sel}/72",
+             f"Adam {n_ad_fix}/{n} $\\to$ {n_ad_sel}/{n};  SGD {n_sg_fix}/{n} $\\to$ {n_sg_sel}/{n}",
              transform=axB.transAxes, ha="left", va="top", fontsize=6,
              bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7", lw=0.5))
     axB.set_xlim(lo, hi); axB.set_ylim(-8, hi)

@@ -46,7 +46,9 @@ python experiments/tsf_edge/combined_grid.py # e.g. the 360-cell grid
 | Fig. 3 (C2 frontier) | `frontier.py --recompute` | `frontier_data.json` | ~30 min |
 | Fig. 4 (staleness, SGD + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
 | C3 default-rate statistics (the confound at scale) | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
-| Fig. 5 + Table `lrfair` (C3 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` | ~1.5 h per 36-cell slice |
+| Fig. 5 + Table `lrfair` (C3 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` (full 360-cell design) | ~10 h total |
+| C1 strategy-generality paragraph | `m6_strategies.py` | `m6_strategies.json` | ~2 h |
+| Discussion: BDG2 meter-selection study | `prep_bdg2_subsets.py`, then `lr_fairness.py --datasets bdg2_fox,bdg2_panther,bdg2_rat_worst` | `bdg2_*.csv` + rows in `lr_fairness.jsonl` | ~40 min |
 | Every number in the paper | `gen_macros.py` | `macros.tex` | seconds, no GPU |
 | Every figure in the paper | `paper_figs.py` | `*_paper.pdf` | seconds, no GPU |
 

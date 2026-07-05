@@ -19,7 +19,10 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CORE = {"appliances", "bdg2", "ETTm2", "ETTh2", "ETTm1", "ETTh1"}
 rows = [json.loads(l) for l in open(os.path.join(ROOT, "results/tsf_edge/lr_fairness.jsonl"))]
+# The FULL fair-LR grid (core datasets; bdg2_* M5 extension subsets excluded from C3 stats).
+rows = [r for r in rows if r["dataset"] in CORE]
 LRS = sorted(rows[0]["lrs"])
 COL = {"sgd": "#1f77b4", "adam": "#d62728"}
 LAB = {"sgd": "full-SGD", "adam": "full-Adam"}
@@ -47,7 +50,7 @@ axA.annotate("the fixed default\n(360-cell grid ran here)", (1e-3, 38), fontsize
 axA.set_xscale("log")
 axA.set_ylim(-72, 45)
 axA.set_xlabel("online learning rate", fontsize=11)
-axA.set_ylabel("adaptation benefit %  (median + IQR over 72 cells)", fontsize=11)
+axA.set_ylabel(f"adaptation benefit %  (median + IQR over {len(rows)} cells)", fontsize=11)
 axA.set_title("(A) Both optimizers have an LR safety plateau;\n"
               "the default sits inside SGD's and outside Adam's", fontsize=12)
 axA.legend(fontsize=9, loc="lower left", framealpha=0.95)
@@ -68,8 +71,8 @@ n_ad_sel = sum(r["sel_benefit_adam"] < 0 for r in rows)
 n_sg_fix = sum(r["sgd"]["0.001"]["benefit"] < 0 for r in rows)
 n_sg_sel = sum(r["sel_benefit_sgd"] < 0 for r in rows)
 axB.text(0.02, 0.98, "rescued by LR rehearsal:\n"
-         f"Adam  {n_ad_fix}/72 neg @default → {n_ad_sel}/72\n"
-         f"SGD   {n_sg_fix}/72 neg @default → {n_sg_sel}/72",
+         f"Adam  {n_ad_fix}/{len(rows)} neg @default → {n_ad_sel}/{len(rows)}\n"
+         f"SGD   {n_sg_fix}/{len(rows)} neg @default → {n_sg_sel}/{len(rows)}",
          transform=axB.transAxes, ha="left", va="top", fontsize=9.5,
          bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7"))
 axB.set_xlim(lo, hi); axB.set_ylim(-8, hi)
@@ -88,9 +91,10 @@ axB.grid(alpha=0.3)
 
 _ds = len({r["dataset"] for r in rows})
 _sd = len({r["seed"] for r in rows})
+_hs = ",".join(str(h) for h in sorted({r["H"] for r in rows}))
 fig.suptitle(f"C3: the online-LR default is a third evaluation confound "
-             f"({len(rows)} cells = {_ds} datasets × 2 backbones × L∈{{96,192}} × {_sd} seeds, "
-             "H=24; per-optimizer LR rehearsed on the pre-drift validation slice)",
+             f"({len(rows)} cells = {_ds} datasets × 2 backbones × H∈{{{_hs}}} × L∈{{96,192}} "
+             f"× {_sd} seeds; per-optimizer LR rehearsed on the pre-drift validation slice)",
              fontsize=11.5)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 out = os.path.join(ROOT, "results", "tsf_edge")
@@ -98,5 +102,5 @@ for ext in ("png", "pdf"):
     fig.savefig(os.path.join(out, f"regime.{ext}"), dpi=150, bbox_inches="tight")
 print("saved", os.path.join(out, "regime.png"))
 sel_gap = np.mean([r["sel_benefit_adam"] - r["sel_benefit_sgd"] for r in rows])
-print(f"pooled: Adam neg @default {n_ad_fix}/72 -> @rehearsed {n_ad_sel}/72; "
+print(f"pooled: Adam neg @default {n_ad_fix}/{len(rows)} -> @rehearsed {n_ad_sel}/{len(rows)}; "
       f"mean sel gap Adam-SGD {sel_gap:+.2f} pt")

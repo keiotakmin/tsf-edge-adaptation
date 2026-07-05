@@ -101,14 +101,21 @@ def _clone(model):
 
 
 def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
-                device="cuda", schedule="every", k=1, tau=1.5, ema_beta=0.9, stride=None):
+                device="cuda", schedule="every", k=1, tau=1.5, ema_beta=0.9, stride=None,
+                adapt_on="current"):
     """Online phase on an ALREADY-WARMED model: predict / score / adapt, rolling forward.
     Adapts a CLONE so the caller's warmed model is left untouched (for the warmup sweep).
 
     stride=H (default, NON-OVERLAPPING) is leakage-free per DSOF (ICLR'25): every eval target
     y[t:t+H] is scored before it is ever used in a gradient, and the model only ever adapts on
     fully-arrived (past) ground truth. stride<H (overlapping) reproduces the FSNet/OneNet
-    information leak (the overlap y[t+stride:t+H] is trained on at step t, then re-scored at t+stride)."""
+    information leak (the overlap y[t+stride:t+H] is trained on at step t, then re-scored at t+stride).
+
+    adapt_on="current" (default) trains on the just-scored pair (x[t-L:t], y[t:t+H]).
+    adapt_on="trailing" trains on the most recent FULLY-REVEALED window (x[t-H-L:t-H],
+    y[t-H:t]) instead: no future eval target can appear in any gradient even at stride<H,
+    so stride=1 + trailing is the leak-free control that isolates the DSOF leak from the
+    eval-window-set / update-frequency differences of stride-1 vs stride-H (referee M3)."""
     T = d.shape[0]
     stride = H if stride is None else stride
     which, okind, state_mult = STRATEGIES[strategy]
@@ -137,10 +144,14 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
             ema = ema_beta * ema + (1 - ema_beta) * err
         widx += 1
         if do_adapt:
+            if adapt_on == "trailing":
+                xa = d[t - H - L:t - H].unsqueeze(0); ya = d[t - H:t].unsqueeze(0)
+            else:
+                xa, ya = x, y
             if device == "cuda":
                 torch.cuda.reset_peak_memory_stats(); torch.cuda.synchronize()
             t0 = time.perf_counter()
-            opt_online.zero_grad(); F.mse_loss(model(x), y).backward(); opt_online.step()
+            opt_online.zero_grad(); F.mse_loss(model(xa), ya).backward(); opt_online.step()
             if device == "cuda":
                 torch.cuda.synchronize(); peak_mem = max(peak_mem, torch.cuda.max_memory_allocated())
             adapt_t += time.perf_counter() - t0; nupd += 1
