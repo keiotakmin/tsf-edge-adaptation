@@ -178,6 +178,23 @@ if os.path.exists(lrf_path):
     readings = {"Fixed": lambda r, o: r[o]["0.001"]["benefit"],
                 "Sel":   lambda r, o: r[f"sel_benefit_{o}"],
                 "Orc":   lambda r, o: r[f"oracle_benefit_{o}"]}
+    def _median(xs):
+        xs = sorted(xs)
+        n = len(xs)
+        return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+    def _cfg_stats(sub, get):
+        """Seed-majority config-level wins (a config = dataset x backbone x L x H), guarding
+        against the seeds-as-independent-samples reading of the cell counts (referee minor)."""
+        cfgs = {}
+        for r in sub:
+            cfgs.setdefault((r["dataset"], r["backbone"], r["L"], r["H"]), []).append(r)
+        aw = sum(sum(get(r, "adam") > get(r, "sgd") for r in v) > len(v) / 2
+                 for v in cfgs.values())
+        unan = sum(sum(get(r, "adam") > get(r, "sgd") for r in v) in (0, len(v))
+                   for v in cfgs.values())
+        return len(cfgs), aw, unan
+
     for Lv in sorted({r["L"] for r in lrf}):                # per-lookback three-reading stats
         sub = [r for r in lrf if r["L"] == Lv]
         base = texname("Lr", "L", Lv)
@@ -194,6 +211,11 @@ if os.path.exists(lrf_path):
             emit(b + "AdamNegPct", round(100 * sum(x < 0 for x in b_a) / len(b_a)))
             emit(b + "AdamMin", s1(min(b_a)))
             emit(b + "MeanGapPt", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(sub)))
+            emit(b + "MedianGapPt", s1(_median([a - s for s, a in zip(b_s, b_a)])))
+            ncfg, aw, unan = _cfg_stats(sub, get)
+            emit(b + "CfgAdamWins", aw)
+            emit(b + "CfgSgdWins", ncfg - aw)
+            emit(b + "CfgUnanimous", unan)
     for lr in sorted(lrf[0]["lrs"]):                        # pooled per-LR plateau statistics
         for o in ("sgd", "adam"):
             vals = [r[o][f"{lr:g}"]["benefit"] for r in lrf]
@@ -216,6 +238,12 @@ if os.path.exists(lrf_path):
         emit("Lr" + rd + "SgdWinsAll", sum(s >= a for s, a in zip(b_s, b_a)))
         emit("Lr" + rd + "AdamWinsAll", sum(a > s for s, a in zip(b_s, b_a)))
         emit("Lr" + rd + "MeanGapPtAll", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(lrf)))
+        emit("Lr" + rd + "MedianGapPtAll", s1(_median([a - s for s, a in zip(b_s, b_a)])))
+        ncfg, aw, unan = _cfg_stats(lrf, get)
+        emit("Lr" + rd + "CfgAdamWinsAll", aw)
+        emit("Lr" + rd + "CfgSgdWinsAll", ncfg - aw)
+        emit("Lr" + rd + "CfgUnanimousAll", unan)
+    emit("LrConfigs", len({(r["dataset"], r["backbone"], r["L"], r["H"]) for r in lrf}))
     for Hv in sorted({r["H"] for r in lrf}):                # per-horizon robustness (compact)
         sub = [r for r in lrf if r["H"] == Hv]
         b = texname("Lr", "H", Hv)
