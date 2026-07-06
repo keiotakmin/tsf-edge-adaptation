@@ -1,4 +1,6 @@
-"""C3 figure (v2, 2026-07-05) — the ONLINE-LR DEFAULT is a third evaluation confound.
+"""C2 figure (v2; contribution renumbered C3→C2 on 2026-07-07 when the Results order became
+C1 warmup → C2 LR-confound → C3 frontier+recipe) — the ONLINE-LR DEFAULT is a third
+evaluation confound.
 Built from lr_fairness.jsonl (the M1 fair-LR grid: 72 cells = 6 datasets x 2 backbones x
 L in {96,192} x 3 seeds, H=24, 8-point LR grid, per-optimizer val-rehearsed LR). Two panels:
   (A) adaptation benefit vs online LR (median + IQR across all cells): BOTH optimizers have an
@@ -92,7 +94,7 @@ axB.grid(alpha=0.3)
 _ds = len({r["dataset"] for r in rows})
 _sd = len({r["seed"] for r in rows})
 _hs = ",".join(str(h) for h in sorted({r["H"] for r in rows}))
-fig.suptitle(f"C3: the online-LR default is a third evaluation confound "
+fig.suptitle(f"C2: the online-LR default is a third evaluation confound "
              f"({len(rows)} cells = {_ds} datasets × 2 backbones × H∈{{{_hs}}} × L∈{{96,192}} "
              f"× {_sd} seeds; per-optimizer LR rehearsed on the pre-drift validation slice)",
              fontsize=11.5)
