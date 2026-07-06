@@ -342,6 +342,19 @@ if wc:
     emit("WcUnderInflatedCount", n_under_infl)           # 5/6: Appliances/PatchTST is a tie
     emit("WcOverInflatedCount", n_over_infl)             # 6/6 on the seed-mean
 
+# ---------- LR-transient guard (Fig 5A collapse = steady-state, not startup transient) ----------
+lt = load_optional("lr_transient.json")
+if lt:
+    section("LR-transient guard (lr_transient.json); per-window online MSE by stream quarter")
+    for key, e in lt.items():
+        ds = key.split("|")[0]
+        emit(texname("Lt", ds) + "NWindows", f"{e['arms']['adam_hi']['n_windows']:,}")
+        for tag, a in e["arms"].items():
+            b = texname("Lt", ds, tag)
+            emit(b + "QOne", f2(a["quarters"][0]))
+            emit(b + "QFour", f2(a["quarters"][3]))
+            emit(b + "LastHundred", f2(a["last_hundred"]))
+
 # ---------- M6: warmup confound across strategies ----------
 m6 = load_optional("m6_strategies.json")
 if m6:
