@@ -296,7 +296,7 @@
 \newcommand{\LrHNineSixSelAdamWins}{94}
 \newcommand{\LrHNineSixSelAdamNegCells}{0}
 
-% ---- M5 BDG2 extension subsets (lr_fairness.jsonl extras); SelBest = per-seed max(sel_sgd, sel_adam), i.e. the fair benefit of the better online optimizer ----
+% ---- M5 BDG2 extension subsets (lr_fairness.jsonl extras); SelBest = per-seed REHEARSAL-selected optimizer at its rehearsed rate (optimizer chosen by validation online MSE; fully deployable, no test data in any selection) ----
 \newcommand{\MfiveBdgTwoDlinearSelBestMean}{+6.9}
 \newcommand{\MfiveBdgTwoDlinearSelBestMin}{+5.2}
 \newcommand{\MfiveBdgTwoDlinearSelBestMax}{+9.1}
@@ -324,14 +324,14 @@
 \newcommand{\MfiveBdgTwoRatAllDlinearSelBestMean}{+2.6}
 \newcommand{\MfiveBdgTwoRatAllDlinearSelBestMin}{+2.1}
 \newcommand{\MfiveBdgTwoRatAllDlinearSelBestMax}{+3.1}
-\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMean}{+43.7}
+\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMean}{+42.6}
 \newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMin}{+39.8}
-\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMax}{+47.1}
+\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMax}{+44.2}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMean}{+2.1}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMin}{+1.6}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMax}{+2.7}
-\newcommand{\MfiveBdgTwoRatWorstPatchtstSelBestMean}{+46.3}
-\newcommand{\MfiveBdgTwoRatWorstPatchtstSelBestMin}{+42.7}
+\newcommand{\MfiveBdgTwoRatWorstPatchtstSelBestMean}{+46.1}
+\newcommand{\MfiveBdgTwoRatWorstPatchtstSelBestMin}{+42.1}
 \newcommand{\MfiveBdgTwoRatWorstPatchtstSelBestMax}{+48.4}
 
 % ---- C2 frontier (frontier_data.json); benefit% >0 = better; energy from P_EDGE_W=5.0W ----

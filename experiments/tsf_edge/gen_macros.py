@@ -251,18 +251,26 @@ if os.path.exists(lrf_path):
         emit(b + "SelAdamWins", sum(r["sel_benefit_adam"] > r["sel_benefit_sgd"] for r in sub))
         emit(b + "SelAdamNegCells", sum(r["sel_benefit_adam"] < 0 for r in sub))
     # M5: BDG2 extension subsets (fair-LR H24/L96/3-seed cells; NOT part of the C3 stats)
+    def _val_chosen(r):
+        """Fully deployable per-seed reading (referee N1): the OPTIMIZER, like its rate, is
+        chosen by validation online MSE (each optimizer at its own rehearsed rate); the test
+        benefit of that choice is reported. No test data enters any selection."""
+        v_s = r["sgd"][f"{r['sel_lr_sgd']:g}"]["val"]
+        v_a = r["adam"][f"{r['sel_lr_adam']:g}"]["val"]
+        return r["sel_benefit_sgd"] if v_s <= v_a else r["sel_benefit_adam"]
+
     extras = sorted({r["dataset"] for r in lrf_all} - core)
     if extras:
         section("M5 BDG2 extension subsets (lr_fairness.jsonl extras); SelBest = per-seed "
-                "max(sel_sgd, sel_adam), i.e. the fair benefit of the better online optimizer")
+                "REHEARSAL-selected optimizer at its rehearsed rate (optimizer chosen by "
+                "validation online MSE; fully deployable, no test data in any selection)")
         ref = [r for r in lrf if r["dataset"] == "bdg2" and r["H"] == 24 and r["L"] == 96
                and r["seed"] < 3]
         pools = [("bdg2", ref)] + [(ds, [r for r in lrf_all if r["dataset"] == ds])
                                    for ds in extras]
         for ds, sub in pools:
             for bb in sorted({r["backbone"] for r in sub}):
-                cells = [max(r["sel_benefit_sgd"], r["sel_benefit_adam"])
-                         for r in sub if r["backbone"] == bb]
+                cells = [_val_chosen(r) for r in sub if r["backbone"] == bb]
                 b = texname("MFive", ds, bb)
                 emit(b + "SelBestMean", s1(sum(cells) / len(cells)))
                 emit(b + "SelBestMin", s1(min(cells)))
