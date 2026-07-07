@@ -164,12 +164,19 @@ def staleness_paper():
         for c, name in enumerate(names):
             ax, d = axes[r][c], st[name]
             ax.axhline(d["static"], color="0.6", ls=":", lw=0.9, label="static (no adapt)")
-            ax.plot([u for u, _ in d["periodic"]], [m for _, m in d["periodic"]], "o-",
-                    color="#1f77b4", label="periodic every-$k$")
-            ax.plot([u for u, _ in d["drift"]], [m for _, m in d["drift"]], "s-",
-                    color="#d62728", label="drift-triggered")
-            win = d["win_pct"]
-            tag = "" if win is None else f" (drift {win:+.1f}%)"
+            for key, col, lab, mk in (("periodic", "#1f77b4", "periodic every-$k$", "o"),
+                                      ("drift", "#d62728", "drift-triggered", "s")):
+                pts = sorted(d[key])
+                u = [p[0] for p in pts]
+                m = np.array([p[1] for p in pts])
+                ax.plot(u, m, mk + "-", color=col, label=lab)
+                if len(pts[0]) > 2:                       # multi-seed schema: +/- std band
+                    s = np.array([p[2] for p in pts])
+                    ax.fill_between(u, m - s, m + s, color=col, alpha=0.15)
+            win, std = d["win_pct"], d.get("win_pct_std")
+            tag = ("" if win is None else
+                   f" (drift {win:+.1f}%)" if std is None else
+                   f" (drift {win:+.1f}$\\pm${std:.1f}%)")
             ax.set_title(f"{PRETTY.get(name, name)} $\\cdot$ {vlab}{tag}", fontsize=7)
             if r == len(variants) - 1:
                 ax.set_xlabel("update fraction")

@@ -298,12 +298,18 @@ if fro:
 # ---------- staleness ----------
 stal = load_optional("staleness_patchtst.json")
 if stal:
-    section("staleness (staleness_patchtst.json); win% >0 = drift-trigger beats periodic @budget")
+    section("staleness (staleness_patchtst.json); win% >0 = drift-trigger beats periodic "
+            "@budget (mean +/- std over seeds where present)")
     for ds, r in stal.items():
         b = texname("Stal", ds)
         if r["win_pct"] is not None:
             emit(b + "WinPct", s1(r["win_pct"]))
-        emit(b + "Warm", r["warm"])
+            if r.get("win_pct_std") is not None:            # multi-seed schema (referee W2)
+                emit(b + "WinPctStd", f1(r["win_pct_std"]))
+        if "seeds" in r:
+            emit(b + "Seeds", r["seeds"])
+        if not isinstance(r["warm"], list):                 # single-seed legacy schema
+            emit(b + "Warm", r["warm"])
         emit(b + "StaticMse", f4(r["static"]))
         emit(b + "BestMse", f4(r["best"]))
 
@@ -314,6 +320,8 @@ if stal_a:
         b = texname("Stal", "Adam", ds)
         if r["win_pct"] is not None:
             emit(b + "WinPct", s1(r["win_pct"]))
+            if r.get("win_pct_std") is not None:
+                emit(b + "WinPctStd", f1(r["win_pct_std"]))
 
 # ---------- C1a warmup confound ----------
 wc = load_optional("warmup_confound.json")
@@ -341,6 +349,17 @@ if wc:
     emit("WcSettings", len(wc))
     emit("WcUnderInflatedCount", n_under_infl)           # 5/6: Appliances/PatchTST is a tie
     emit("WcOverInflatedCount", n_over_infl)             # 6/6 on the seed-mean
+
+# ---------- W1 scalability timing ----------
+sc = load_optional("scale_timing.json")
+if sc:
+    section("W1 scalability (scale_timing.json); per-update adaptation wall-clock, PatchTST, "
+            "SGD@1e-3 / Adam@1e-4")
+    for ds, r in sc.items():
+        b = texname("Sc", ds)
+        emit(b + "Channels", r["channels"])
+        emit(b + "SgdMs", f1(r["sgd_ms"]))
+        emit(b + "AdamMs", f1(r["adam_ms"]))
 
 # ---------- LR-transient guard (Fig 5A collapse = steady-state, not startup transient) ----------
 lt = load_optional("lr_transient.json")

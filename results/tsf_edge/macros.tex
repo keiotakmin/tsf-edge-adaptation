@@ -303,6 +303,12 @@
 \newcommand{\MfiveBdgTwoPatchtstSelBestMean}{+13.5}
 \newcommand{\MfiveBdgTwoPatchtstSelBestMin}{+12.0}
 \newcommand{\MfiveBdgTwoPatchtstSelBestMax}{+15.0}
+\newcommand{\MfiveBdgTwoFleetDlinearSelBestMean}{+7.0}
+\newcommand{\MfiveBdgTwoFleetDlinearSelBestMin}{+6.5}
+\newcommand{\MfiveBdgTwoFleetDlinearSelBestMax}{+7.6}
+\newcommand{\MfiveBdgTwoFleetPatchtstSelBestMean}{+28.7}
+\newcommand{\MfiveBdgTwoFleetPatchtstSelBestMin}{+25.8}
+\newcommand{\MfiveBdgTwoFleetPatchtstSelBestMax}{+31.9}
 \newcommand{\MfiveBdgTwoFoxDlinearSelBestMean}{+7.5}
 \newcommand{\MfiveBdgTwoFoxDlinearSelBestMin}{+7.2}
 \newcommand{\MfiveBdgTwoFoxDlinearSelBestMax}{+7.9}
@@ -315,6 +321,12 @@
 \newcommand{\MfiveBdgTwoPantherPatchtstSelBestMean}{+5.6}
 \newcommand{\MfiveBdgTwoPantherPatchtstSelBestMin}{+4.3}
 \newcommand{\MfiveBdgTwoPantherPatchtstSelBestMax}{+7.3}
+\newcommand{\MfiveBdgTwoRatAllDlinearSelBestMean}{+2.6}
+\newcommand{\MfiveBdgTwoRatAllDlinearSelBestMin}{+2.1}
+\newcommand{\MfiveBdgTwoRatAllDlinearSelBestMax}{+3.1}
+\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMean}{+43.7}
+\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMin}{+39.8}
+\newcommand{\MfiveBdgTwoRatAllPatchtstSelBestMax}{+47.1}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMean}{+2.1}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMin}{+1.6}
 \newcommand{\MfiveBdgTwoRatWorstDlinearSelBestMax}{+2.7}
@@ -400,24 +412,30 @@
 \newcommand{\FroEnergyMinMj}{5.2}
 \newcommand{\FroEnergyMaxMj}{23.1}
 
-% ---- staleness (staleness_patchtst.json); win% >0 = drift-trigger beats periodic @budget ----
-\newcommand{\StalEtthTwoWinPct}{-2.6}
-\newcommand{\StalEtthTwoWarm}{200}
-\newcommand{\StalEtthTwoStaticMse}{0.1845}
-\newcommand{\StalEtthTwoBestMse}{0.1538}
-\newcommand{\StalEttmTwoWinPct}{-3.5}
-\newcommand{\StalEttmTwoWarm}{2000}
-\newcommand{\StalEttmTwoStaticMse}{0.1215}
-\newcommand{\StalEttmTwoBestMse}{0.0997}
-\newcommand{\StalAppliancesWinPct}{+4.3}
-\newcommand{\StalAppliancesWarm}{2000}
-\newcommand{\StalAppliancesStaticMse}{0.4215}
-\newcommand{\StalAppliancesBestMse}{0.3176}
+% ---- staleness (staleness_patchtst.json); win% >0 = drift-trigger beats periodic @budget (mean +/- std over seeds where present) ----
+\newcommand{\StalEtthTwoWinPct}{-1.9}
+\newcommand{\StalEtthTwoWinPctStd}{0.5}
+\newcommand{\StalEtthTwoSeeds}{3}
+\newcommand{\StalEtthTwoStaticMse}{0.2010}
+\newcommand{\StalEtthTwoBestMse}{0.1600}
+\newcommand{\StalEttmTwoWinPct}{-6.8}
+\newcommand{\StalEttmTwoWinPctStd}{2.4}
+\newcommand{\StalEttmTwoSeeds}{3}
+\newcommand{\StalEttmTwoStaticMse}{0.1161}
+\newcommand{\StalEttmTwoBestMse}{0.1032}
+\newcommand{\StalAppliancesWinPct}{+5.5}
+\newcommand{\StalAppliancesWinPctStd}{0.9}
+\newcommand{\StalAppliancesSeeds}{3}
+\newcommand{\StalAppliancesStaticMse}{0.4367}
+\newcommand{\StalAppliancesBestMse}{0.2869}
 
 % ---- staleness, full-Adam variant (staleness_patchtst_full_adam.json) ----
-\newcommand{\StalAdamEtthTwoWinPct}{-0.9}
-\newcommand{\StalAdamEttmTwoWinPct}{+4.4}
-\newcommand{\StalAdamAppliancesWinPct}{+2.0}
+\newcommand{\StalAdamEtthTwoWinPct}{-2.8}
+\newcommand{\StalAdamEtthTwoWinPctStd}{1.6}
+\newcommand{\StalAdamEttmTwoWinPct}{+4.5}
+\newcommand{\StalAdamEttmTwoWinPctStd}{0.4}
+\newcommand{\StalAdamAppliancesWinPct}{+1.9}
+\newcommand{\StalAdamAppliancesWinPctStd}{0.3}
 
 % ---- C1a warmup confound (warmup_confound.json); values NEGATED to the paper-wide positive-good convention (improvement% >0 = adaptation better; minor 1). InflPt = improvement minus sweet-spot improvement (>0 = benefit INFLATED) ----
 \newcommand{\WcEttmTwoDlinearUnder}{+15.4}
@@ -477,6 +495,17 @@
 \newcommand{\WcSettings}{6}
 \newcommand{\WcUnderInflatedCount}{5}
 \newcommand{\WcOverInflatedCount}{6}
+
+% ---- W1 scalability (scale_timing.json); per-update adaptation wall-clock, PatchTST, SGD@1e-3 / Adam@1e-4 ----
+\newcommand{\ScBdgTwoChannels}{15}
+\newcommand{\ScBdgTwoSgdMs}{3.5}
+\newcommand{\ScBdgTwoAdamMs}{3.8}
+\newcommand{\ScBdgTwoFleetChannels}{240}
+\newcommand{\ScBdgTwoFleetSgdMs}{4.7}
+\newcommand{\ScBdgTwoFleetAdamMs}{3.9}
+\newcommand{\ScBdgTwoRatAllChannels}{280}
+\newcommand{\ScBdgTwoRatAllSgdMs}{5.6}
+\newcommand{\ScBdgTwoRatAllAdamMs}{6.4}
 
 % ---- LR-transient guard (lr_transient.json); per-window online MSE by stream quarter ----
 \newcommand{\LtEttmTwoNWindows}{1,451}
@@ -605,4 +634,4 @@
 \newcommand{\VpAppliancesPatchtstDelta}{+1.8}
 \newcommand{\VpDeltaMinPt}{+0.0}
 \newcommand{\VpDeltaMaxPt}{+3.0}
-\newcommand{\MacrosDate}{2026-07-06}
+\newcommand{\MacrosDate}{2026-07-07}
