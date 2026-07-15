@@ -25,7 +25,7 @@ figure is drawn from them; no hand-typed results anywhere:
 ```bash
 pip install -r requirements.txt
 python experiments/tsf_edge/gen_macros.py    # -> results/tsf_edge/macros.tex (380+ macros)
-python experiments/tsf_edge/paper_figs.py    # -> results/tsf_edge/*_paper.pdf (all 5 figures)
+python experiments/tsf_edge/paper_figs.py    # -> results/tsf_edge/*_paper.pdf (the paper's 5 figures + 1 supplementary)
 ```
 
 ## Quickstart 2 — rerun the experiments (GPU)
@@ -43,12 +43,12 @@ python experiments/tsf_edge/combined_grid.py # e.g. the 360-cell grid
 | Table I + Fig. 1 (C1a warmup confound) | `warmup_confound.py` | `warmup_confound.json` | ~1.5 h |
 | Fig. 2 (C1c deployable protocol) | `validation_protocol.py` | `validation_protocol.json` | ~1 h |
 | C1b leak inflation numbers | `leakage_check.py` | `leakage_check.json` | ~10 min |
-| Fig. 3 (C2 frontier) | `frontier.py --recompute` | `frontier_data.json` | ~30 min |
-| Fig. 4 (staleness, SGD + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
-| C3 default-rate statistics (the confound at scale) | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
-| Fig. 5 + Table `lrfair` (C3 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` (full 360-cell design) | ~10 h total |
-| C1 strategy-generality paragraph | `m6_strategies.py` | `m6_strategies.json` | ~2 h |
-| Discussion: BDG2 meter-selection study | `prep_bdg2_subsets.py`, then `lr_fairness.py --datasets bdg2_fox,bdg2_panther,bdg2_rat_worst` | `bdg2_*.csv` + rows in `lr_fairness.jsonl` | ~40 min |
+| Fig. 4 (C3 frontier) | `frontier.py --recompute` | `frontier_data.json` | ~30 min |
+| Fig. 5 (staleness, SGD + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
+| C2 default-rate statistics (the confound at scale) | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
+| Fig. 3 + Table II (C2 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` (full 360-cell design) | ~10 h total |
+| Supplementary: the warmup confound across four strategies (not in the paper — cut for page budget; figure `m6_strategies_paper.pdf`) | `m6_strategies.py` | `m6_strategies.json` | ~2 h |
+| Table III (BDG2 meter-selection & scale study) | `prep_bdg2_subsets.py`, then `lr_fairness.py --datasets bdg2_fox,bdg2_panther,bdg2_rat_worst,bdg2_rat_all,bdg2_fleet` | `bdg2_*.csv` + rows in `lr_fairness.jsonl` | ~40 min (15-meter subsets); hours for site/fleet |
 | Every number in the paper | `gen_macros.py` | `macros.tex` | seconds, no GPU |
 | Every figure in the paper | `paper_figs.py` | `*_paper.pdf` | seconds, no GPU |
 

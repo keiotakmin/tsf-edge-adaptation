@@ -257,9 +257,51 @@ def regime_paper():
     save(fig, "regime_paper")
 
 
+def m6_strategies_paper():
+    """C1 (M6), 1x2: the warmup confound is strategy-generic and distorts strategy RANKINGS.
+    Static U-shape (gray, left axis; shared across strategies by construction) + each
+    strategy's improvement (right axis): under-warming inflates all four, over-warming
+    inflates full-model but deflates PEFT (head/calib)."""
+    m6 = load("m6_strategies.json")
+    strats = [("full_sgd", "full$\\cdot$SGD @$10^{-3}$", "#1f77b4"),
+              ("full_adam", "full$\\cdot$Adam @$10^{-4}$", "#d62728"),
+              ("head_sgd", "head$\\cdot$SGD @$10^{-3}$", "#2ca02c"),
+              ("calib_sgd", "calib$\\cdot$SGD @$10^{-3}$", "#9467bd")]
+    order = ["ETTm2|patchtst", "appliances|patchtst"]
+    fig, axes = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.5))
+    for i, (ax, key) in enumerate(zip(axes, order)):
+        d = m6[key]
+        ds, bb = key.split("|")
+        m = d["milestones"]
+        sm, ss = np.array(d["static_mean"]), np.array(d["static_std"])
+        ax.plot(m, sm, "o-", color="0.35")
+        ax.fill_between(m, sm - ss, sm + ss, color="0.35", alpha=0.15)
+        ax.axvline(d["sweet_step"], color="green", ls=":", lw=1.1)
+        ax.set_xscale("log"); ax.grid(alpha=0.3)
+        ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
+        ax.set_xlabel("warmup steps")
+        if i == 0:
+            ax.set_ylabel("static online MSE")
+        ax2 = ax.twinx()
+        for strat, _, col in strats:
+            im = np.array(d["strategies"][strat]["imp_mean"])
+            ax2.plot(m, im, "^--", color=col, lw=1.0, ms=2.5)
+        if i == len(order) - 1:
+            ax2.set_ylabel("adaptation improvement %")
+    handles = [Line2D([], [], marker="o", color="0.35", label="static (no adapt; left axis)"),
+               Line2D([], [], ls=":", color="green", lw=1.1, label="sweet spot")]
+    handles += [Line2D([], [], marker="^", ls="--", color=col, ms=2.5, label=lab)
+                for _, lab, col in strats]
+    fig.legend(handles=handles, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.12),
+               frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    save(fig, "m6_strategies_paper")
+
+
 if __name__ == "__main__":
     warmup_confound_paper()
     validation_protocol_paper()
     frontier_paper()
     staleness_paper()
     regime_paper()
+    m6_strategies_paper()
