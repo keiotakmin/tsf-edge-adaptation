@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Download the non-shipped datasets (ETT x4, UCI Appliances) into this directory and verify
-# them against checksums.sha256 = the exact files used in the paper. bdg2.csv is shipped.
+# them against checksums.sha256 = the exact files used in the paper. bdg2*.csv are shipped.
 set -uo pipefail
 cd "$(dirname "$0")"
 

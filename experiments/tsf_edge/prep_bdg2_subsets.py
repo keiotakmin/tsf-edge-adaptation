@@ -81,7 +81,8 @@ def build_multi(cols, fname):
         cols = [c for c in cols if c not in dead]
         sub = sub[["date"] + cols]
     sub.to_csv(os.path.join(OUTDIR, fname), index=False)
-    print(f"  wrote {fname}: {len(cols)} meters, missingness "
+    n_sites = len({site_of[c] for c in cols})    # sites in the FINAL artifact, post exclusion
+    print(f"  wrote {fname}: {len(cols)} meters across {n_sites} site(s), missingness "
           f"{miss[cols].min():.2%} .. {miss[cols].max():.2%}")
 
 
@@ -95,6 +96,12 @@ fleet = []
 for s in sites:
     cols = [c for c in df.columns[1:] if site_of[c] == s and miss[c] <= 1 - MIN_COV]
     fleet += miss[cols].sort_values().head(15).index.tolist()
-print(f"fleet: {len(sites)} sites -> {len(fleet)} meters (up to 15 least-missing per site, "
-      f">= {MIN_COV:.0%} coverage)")
+# A site where no meter passes the coverage rule contributes NOTHING (e.g. Swan): report the
+# CONTRIBUTING site count, not the corpus site count — the old print said "19 sites" and got
+# transcribed into the paper while the shipped fleet actually spans 18.
+contrib = {site_of[c] for c in fleet}
+empty = sorted(s for s in sites if s not in contrib)
+print(f"fleet: {len(contrib)}/{len(sites)} sites contribute -> {len(fleet)} meters "
+      f"(up to 15 least-missing per site, >= {MIN_COV:.0%} coverage"
+      + (f"; no eligible meter at: {', '.join(empty)}" if empty else "") + ")")
 build_multi(fleet, "bdg2_fleet.csv")

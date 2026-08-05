@@ -13,7 +13,7 @@ artifacts into every number and figure in the paper.
 
 ```
 experiments/tsf_edge/    the harness (see "Reproduction map" below)
-    data/                datasets: bdg2.csv shipped; ETT + Appliances via get_data.sh
+    data/                datasets: bdg2*.csv shipped; ETT + Appliances via get_data.sh
 results/tsf_edge/        the paper's result artifacts (data files + generated macros/figures)
 ```
 
@@ -32,7 +32,7 @@ python experiments/tsf_edge/paper_figs.py    # -> results/tsf_edge/*_paper.pdf (
 
 ```bash
 pip install -r requirements.txt
-bash experiments/tsf_edge/data/get_data.sh   # fetch ETT x4 + UCI Appliances (bdg2.csv shipped)
+bash experiments/tsf_edge/data/get_data.sh   # fetch ETT x4 + UCI Appliances (bdg2*.csv shipped)
 python experiments/tsf_edge/combined_grid.py # e.g. the 360-cell grid
 ```
 

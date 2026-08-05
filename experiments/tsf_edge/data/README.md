@@ -8,7 +8,7 @@ verifies them against `checksums.sha256` — the checksums of the exact files us
 | ETTh1/ETTh2/ETTm1/ETTm2.csv | [ETDataset](https://github.com/zhouhaoyi/ETDataset) (ETT-small) | see source repo | no (downloaded) |
 | appliances.csv | [UCI Appliances energy prediction](https://archive.ics.uci.edu/dataset/374) (`energydata_complete.csv`, renamed) | CC BY 4.0 | no (downloaded) |
 | bdg2.csv | derived from [Building Data Genome 2](https://github.com/buds-lab/building-data-genome-project-2) (Zenodo DOI [10.5281/zenodo.3887306](https://doi.org/10.5281/zenodo.3887306)) | MIT (source) | **yes** |
-| bdg2_fox.csv / bdg2_panther.csv / bdg2_rat_worst.csv | same corpus, built by `../prep_bdg2_subsets.py` (meter-selection study, paper Discussion) | MIT (source) | **yes** |
+| bdg2_fox.csv / bdg2_panther.csv / bdg2_rat_worst.csv / bdg2_rat_all.csv / bdg2_fleet.csv | same corpus, built by `../prep_bdg2_subsets.py` (meter-selection & scale study, paper §IV-C Table III) | MIT (source) | **yes** |
 
 ## bdg2.csv preprocessing specification
 
@@ -23,11 +23,17 @@ The shipped `bdg2.csv` is the exact file used in all experiments (see `checksums
 Honest provenance note: re-deriving a "15 least-missing at Rat" selection from today's
 `electricity_cleaned.csv` reproduces only 5/15 of the shipped building set (the original
 ranking differed in detail, e.g. in how zero readings were counted); the shipped, checksummed
-file is the source of truth for the paper's results. The three **extension subsets** are, by
+file is the source of truth for the paper's results. The five **extension subsets** are, by
 contrast, exactly reproducible: `prep_bdg2_subsets.py` builds `bdg2_fox.csv` /
-`bdg2_panther.csv` (15 least-missing at sites Fox / Panther) and `bdg2_rat_worst.csv` (the 15
+`bdg2_panther.csv` (15 least-missing at sites Fox / Panther), `bdg2_rat_worst.csv` (the 15
 **most**-missing Rat meters with >=50% coverage --- the anti-selection subset for the
-meter-selection-bias analysis) from the raw corpus table with the same fill rule.
+meter-selection-bias analysis), `bdg2_rat_all.csv` (all 280 Rat meters passing the coverage
+rule), and `bdg2_fleet.csv` (up to the 15 least-missing meters per site corpus-wide: 240
+meters across 18 of the 19 sites --- Swan has no meter passing the coverage rule) from the
+raw corpus table with the same fill rule. The multi-hundred-meter subsets additionally apply
+an **ex-ante inactive-meter rule** (first-half std < 1e-2 excludes a meter: one constant
+fleet meter otherwise explodes under z-normalization and flattens the fleet-wide metric).
+All five are covered by `checksums.sha256`.
 
 ## Loading convention
 
