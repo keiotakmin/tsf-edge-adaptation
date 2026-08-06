@@ -171,9 +171,14 @@ if os.path.exists(lrf_path):
             "Lr* = the FULL fair-LR grid (6 ds x 2 bb x H in {24,48,96} x L in {96,192} x 5 seeds)")
     LRNAME = {3e-06: "ThreeEMinusSix", 1e-05: "OneEMinusFive", 3e-05: "ThreeEMinusFive",
               1e-04: "OneEMinusFour", 3e-04: "ThreeEMinusFour", 1e-03: "OneEMinusThree",
-              3e-03: "ThreeEMinusThree", 1e-02: "OneEMinusTwo"}
+              3e-03: "ThreeEMinusThree", 1e-02: "OneEMinusTwo", 3e-02: "ThreeEMinusTwo",
+              1e-01: "OneEMinusOne"}
+    # rates present in EVERY cell (both optimizers) — during an in-flight grid extension some
+    # cells have the new rates and some do not; pooled per-LR stats must only use the common set
+    common_lrs = sorted(set.intersection(
+        *[{float(k) for k in r["sgd"]} & {float(k) for k in r["adam"]} for r in lrf]))
     emit("LrCells", len(lrf))
-    emit("LrGridPoints", len(lrf[0]["lrs"]))
+    emit("LrGridPoints", len(common_lrs))
     emit("LrSeeds", len({r["seed"] for r in lrf}))
     readings = {"Fixed": lambda r, o: r[o]["0.001"]["benefit"],
                 "Sel":   lambda r, o: r[f"sel_benefit_{o}"],
@@ -182,6 +187,13 @@ if os.path.exists(lrf_path):
         xs = sorted(xs)
         n = len(xs)
         return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+    DIV = -100.0                # a benefit below -100% (or nan/-inf) = a diverged stream;
+                                # counted as negative, excluded from worst-value/mean stats
+    def _negstats(vals):
+        bounded = [v for v in vals if v == v and v >= DIV]
+        div = len(vals) - len(bounded)
+        return div + sum(v < 0 for v in bounded), div, min(bounded)
 
     def _cfg_stats(sub, get):
         """Seed-majority config-level wins (a config = dataset x backbone x L x H), guarding
@@ -205,44 +217,100 @@ if os.path.exists(lrf_path):
             b = base + rd
             emit(b + "SgdWins", sum(s >= a for s, a in zip(b_s, b_a)))
             emit(b + "AdamWins", sum(a > s for s, a in zip(b_s, b_a)))
-            emit(b + "SgdNegCells", sum(x < 0 for x in b_s))
-            emit(b + "SgdMin", s1(min(b_s)))
-            emit(b + "AdamNegCells", sum(x < 0 for x in b_a))
-            emit(b + "AdamNegPct", round(100 * sum(x < 0 for x in b_a) / len(b_a)))
-            emit(b + "AdamMin", s1(min(b_a)))
-            emit(b + "MeanGapPt", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(sub)))
-            emit(b + "MedianGapPt", s1(_median([a - s for s, a in zip(b_s, b_a)])))
+            s_neg, s_div, s_worst = _negstats(b_s)
+            a_neg, a_div, a_worst = _negstats(b_a)
+            emit(b + "SgdNegCells", s_neg)
+            emit(b + "SgdDivCells", s_div)
+            emit(b + "SgdMin", s1(s_worst))
+            emit(b + "AdamNegCells", a_neg)
+            emit(b + "AdamDivCells", a_div)
+            emit(b + "AdamNegPct", round(100 * a_neg / len(b_a)))
+            emit(b + "AdamMin", s1(a_worst))
+            gaps = [a - s for s, a in zip(b_s, b_a)]
+            bounded_gaps = [g for g in gaps if abs(g) <= -DIV]   # excl. diverged-SGD cells
+            emit(b + "MeanGapPt", s1(sum(bounded_gaps) / len(bounded_gaps)))
+            emit(b + "MedianGapPt", s1(_median(gaps)))
             ncfg, aw, unan = _cfg_stats(sub, get)
             emit(b + "CfgAdamWins", aw)
             emit(b + "CfgSgdWins", ncfg - aw)
             emit(b + "CfgUnanimous", unan)
-    for lr in sorted(lrf[0]["lrs"]):                        # pooled per-LR plateau statistics
+    for lr in common_lrs:                                   # pooled per-LR plateau statistics
         for o in ("sgd", "adam"):
             vals = [r[o][f"{lr:g}"]["benefit"] for r in lrf]
-            b = texname("Lr", o) + "At" + LRNAME[lr]
-            emit(b + "NegCells", sum(v < 0 for v in vals))
-            emit(b + "Mean", s1(sum(vals) / len(vals)))
-            emit(b + "Min", s1(min(vals)))
+            fin = [v for v in vals if v == v]                # a NaN mse (diverged stream at an
+            b = texname("Lr", o) + "At" + LRNAME[lr]         # extreme rate) counts as negative;
+            emit(b + "NegCells", sum(v < 0 for v in fin) + len(vals) - len(fin))
+            emit(b + "Mean", s1(sum(fin) / len(fin)))        # mean/min are over finite cells
+            emit(b + "Min", s1(min(fin)))
     # selection behaviour (pooled over all cells)
     emit("LrAdamSelLeqThreeEMinusFourCells", sum(r["sel_lr_adam"] <= 3e-4 for r in lrf))
     emit("LrAdamSelGeqOneEMinusThreeCells", sum(r["sel_lr_adam"] >= 1e-3 for r in lrf))
     emit("LrSgdSelGeqOneEMinusThreeCells", sum(r["sel_lr_sgd"] >= 1e-3 for r in lrf))
-    emit("LrSgdSelNegCellsAll", sum(r["sel_benefit_sgd"] < 0 for r in lrf))
-    emit("LrSgdSelMinAll", s1(min(r["sel_benefit_sgd"] for r in lrf)))
-    emit("LrSelAdamNegCellsAll", sum(r["sel_benefit_adam"] < 0 for r in lrf))
-    emit("LrSelAdamMinAll", s1(min(r["sel_benefit_adam"] for r in lrf)))
+    s_neg, s_div, s_worst = _negstats([r["sel_benefit_sgd"] for r in lrf])
+    a_neg, a_div, a_worst = _negstats([r["sel_benefit_adam"] for r in lrf])
+    emit("LrSgdSelNegCellsAll", s_neg)
+    emit("LrSgdSelDivCellsAll", s_div)
+    emit("LrSgdSelMinAll", s1(s_worst))
+    emit("LrSelAdamNegCellsAll", a_neg)
+    emit("LrSelAdamMinAll", s1(a_worst))
+    # R1 grid-top extension: selection/bracketing behaviour at the two added rates (3e-2, 1e-1)
+    top = max(common_lrs)
+    below_top = common_lrs[-2]
+    emit("LrSgdSelExtCells", sum(r["sel_lr_sgd"] >= 3e-2 for r in lrf))
+    emit("LrAdamSelExtCells", sum(r["sel_lr_adam"] >= 3e-2 for r in lrf))
+    emit("LrSgdOrcAtTopCells", sum(r["oracle_lr_sgd"] == top for r in lrf))
+    emit("LrSgdOrcTopRiseMaxPt", s1(max(
+        r["sgd"][f"{top:g}"]["benefit"] - r["sgd"][f"{below_top:g}"]["benefit"]
+        for r in lrf if r["oracle_lr_sgd"] == top)))
+    sel_neg = [r for r in lrf if not (r["sel_benefit_sgd"] >= 0)]
+    emit("LrSgdSelNegAppliancesDlinearCells",
+         sum(r["dataset"] == "appliances" and r["backbone"] == "dlinear" for r in sel_neg))
+    # by how much did the picks that go on to DIVERGE win their rehearsals? (the val slice
+    # sees only a marginal advantage where the test stream later explodes)
+    emit("LrSgdSelDivValMarginMaxPct", f1(max(
+        100 * (1 - r["sgd"][f"{r['sel_lr_sgd']:g}"]["val"] / r["sgd"]["0.001"]["val"])
+        for r in sel_neg if not (r["sel_benefit_sgd"] >= DIV))))
+    # the no-free-fix check: a conservative rule (smallest rate within 2% of the best val
+    # MSE) repairs the diverged picks but costs benefit almost everywhere else
+    def _tol_sel(r, o, tol=0.02):
+        grid = sorted(float(k) for k in r[o])
+        best = min(r[o][f"{lr:g}"]["val"] for lr in grid
+                   if r[o][f"{lr:g}"]["val"] == r[o][f"{lr:g}"]["val"])
+        return next(lr for lr in grid if r[o][f"{lr:g}"]["val"] <= (1 + tol) * best)
+    deltas = []
+    for r in lrf:
+        g = _tol_sel(r, "sgd")
+        if g != r["sel_lr_sgd"]:
+            deltas.append(r["sgd"][f"{g:g}"]["benefit"] - r["sel_benefit_sgd"])
+    emit("LrTolGuardChangedCells", len(deltas))
+    emit("LrTolGuardMedianCostPt", f1(-_median([d for d in deltas if abs(d) <= -DIV])))
+    # skeptic reading: deployable (rehearsed) Adam vs SGD's unattainable per-cell test-oracle
+    emit("LrSelAdamVsOrcSgdWins",
+         sum(r["sel_benefit_adam"] > r["oracle_benefit_sgd"] for r in lrf))
+    emit("LrSelAdamVsOrcSgdMedianPt", s1(_median(
+        [r["sel_benefit_adam"] - r["oracle_benefit_sgd"] for r in lrf]), nd=2))
     # pooled three-reading win counts (abstract/intro cite these)
     for rd, get in readings.items():
         b_s = [get(r, "sgd") for r in lrf]
         b_a = [get(r, "adam") for r in lrf]
         emit("Lr" + rd + "SgdWinsAll", sum(s >= a for s, a in zip(b_s, b_a)))
         emit("Lr" + rd + "AdamWinsAll", sum(a > s for s, a in zip(b_s, b_a)))
-        emit("Lr" + rd + "MeanGapPtAll", s1(sum(a - s for s, a in zip(b_s, b_a)) / len(lrf)))
-        emit("Lr" + rd + "MedianGapPtAll", s1(_median([a - s for s, a in zip(b_s, b_a)])))
+        gaps = [a - s for s, a in zip(b_s, b_a)]
+        bounded_gaps = [g for g in gaps if abs(g) <= -DIV]     # excl. diverged-SGD cells
+        emit("Lr" + rd + "MeanGapPtAll", s1(sum(bounded_gaps) / len(bounded_gaps)))
+        emit("Lr" + rd + "MedianGapPtAll", s1(_median(gaps)))
         ncfg, aw, unan = _cfg_stats(lrf, get)
         emit("Lr" + rd + "CfgAdamWinsAll", aw)
         emit("Lr" + rd + "CfgSgdWinsAll", ncfg - aw)
         emit("Lr" + rd + "CfgUnanimousAll", unan)
+        if rd == "Sel":                     # two-sided binomial sign test on the config-level
+            from math import comb           # winners (guards the seeds-as-samples objection)
+            k = max(aw, ncfg - aw)
+            p = min(1.0, sum(comb(ncfg, i) for i in range(k, ncfg + 1)) / 2 ** (ncfg - 1))
+            e = 0
+            while p < 1:                    # 1-sig-fig scientific form for use in math mode
+                p *= 10; e -= 1
+            emit("LrSelCfgSignPAll", f"{round(p)}{{\\times}}10^{{{e}}}" if e else f1(p))
     emit("LrConfigs", len({(r["dataset"], r["backbone"], r["L"], r["H"]) for r in lrf}))
     for Hv in sorted({r["H"] for r in lrf}):                # per-horizon robustness (compact)
         sub = [r for r in lrf if r["H"] == Hv]
@@ -278,30 +346,40 @@ if os.path.exists(lrf_path):
 else:
     warnings.append("missing lr_fairness.jsonl (run lr_fairness.py to include these macros)")
 
-# ---------- C2 frontier ----------
-fro = load_optional("frontier_data.json")
-if fro:
-    section("C2 frontier (frontier_data.json); benefit% >0 = better; energy from P_EDGE_W="
-            + f1(P_EDGE_W) + "W")
-    energies = []
-    for ds, frows in fro.items():
-        params = {r["label"]: r["params"] for r in frows}
-        for r in frows:
-            b = texname("Fro", ds, r["label"])
-            emit(b + "Benefit", s1(r["benefit"]))
-            emit(b + "Params", f"{r['params']:,}")
-            emit(b + "Ms", f2(r["ms"]))
-            emit(b + "EnergyMilliJoule", f1(r["ms"] * P_EDGE_W))
-            energies.append(r["ms"] * P_EDGE_W)
-            if "warmup" in r:
-                emit(b + "Warmup", r["warmup"])
-            if "benefit_fixed" in r:                        # the old fixed-1e-3 reading, kept
-                emit(b + "BenefitFixed", s1(r["benefit_fixed"]))   # for the confound narrative
-        full, calib = params.get("PatchTST full·SGD"), params.get("PatchTST calib·SGD")
+# ---------- C3 frontier (5-seed, R2) ----------
+fs_path = os.path.join(RES, "frontier_seeds.jsonl")
+if os.path.exists(fs_path):
+    fs = [json.loads(l) for l in open(fs_path)]
+    section("C3 frontier (frontier_seeds.jsonl, 5 seeds; supersedes the seed-0 "
+            "frontier_data.json); Benefit/BenefitFixed = seed means (rehearsed / fixed-1e-3), "
+            "Std = population std over seeds; energy from P_EDGE_W=" + f1(P_EDGE_W) + "W")
+    import statistics
+    groups = {}
+    for r in fs:
+        groups.setdefault((r["dataset"], r["label"]), []).append(r)
+    emit("FroSeeds", len({r["seed"] for r in fs}))
+    energies, params_by = [], {}
+    for (ds, lab), rows_ in sorted(groups.items()):
+        b = texname("Fro", ds, lab)
+        bens = [r["benefit"] for r in rows_ if abs(r["benefit"]) <= 100]
+        fixd = [r["benefit_fixed"] for r in rows_ if abs(r["benefit_fixed"]) <= 100]
+        ms = sum(r["ms"] for r in rows_) / len(rows_)
+        emit(b + "Benefit", s1(sum(bens) / len(bens)))
+        emit(b + "BenefitStd", f1(statistics.pstdev(bens)))
+        emit(b + "BenefitFixed", s1(sum(fixd) / len(fixd)))
+        emit(b + "Params", f"{rows_[0]['params']:,}")
+        emit(b + "Ms", f2(ms))
+        emit(b + "EnergyMilliJoule", f1(ms * P_EDGE_W))
+        energies.append(ms * P_EDGE_W)
+        params_by.setdefault(ds, {})[lab] = rows_[0]["params"]
+    for ds, p in params_by.items():
+        full, calib = p.get("PatchTST full·SGD"), p.get("PatchTST calib·SGD")
         if full and calib:
             emit(texname("Fro", ds) + "FullOverCalibParams", f1(full / calib))
     emit("FroEnergyMinMj", f1(min(energies)))
     emit("FroEnergyMaxMj", f1(max(energies)))
+else:
+    warnings.append("missing frontier_seeds.jsonl (run frontier_seeds.py)")
 
 # ---------- staleness ----------
 stal = load_optional("staleness_patchtst.json")

@@ -185,8 +185,11 @@ def warmup_model(backbone, L, H, C, d, n_warm, warmup_steps, lr=1e-3, device="cu
 VAL_FRAC = 0.2   # held-out most-recent pre-drift slice used for warmup early-stopping (C1 protocol)
 WARM_GRID = [200, 500, 1000, 2000, 4000, 8000, 20000]   # 20k covers the ETTm2/DLinear sweet spot;
                                                         # the old 8k cap censored 14/108 grid cells
-LR_GRID = [3e-6, 1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]   # online-LR rehearsal grid (M1
-                                                             # fair-LR protocol; lr_fairness.py)
+LR_GRID = [3e-6, 1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1]
+# online-LR rehearsal grid (M1 fair-LR protocol; lr_fairness.py). Top extended 1e-2 -> 1e-1
+# (R1, 2026-08-06): SGD's per-cell optimum sat on the old 1e-2 edge (oracle 181/360, sel
+# 122/360 cells, benefit still rising +2.0 pt mean from 3e-3) -- the same bracketing rule
+# that drove the round-2 bottom extension to 3e-6 for Adam.
 
 
 def val_mse(model, d, a, b, L, H):

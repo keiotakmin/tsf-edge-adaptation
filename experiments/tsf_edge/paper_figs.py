@@ -109,15 +109,23 @@ def validation_protocol_paper():
 
 
 def frontier_paper():
-    """C2, 2x2 (datasets x {memory, compute}); styling constants shared with frontier.py.
-    Memory axis = adaptation memory (gradients + optimizer state), which separates full-Adam
-    (12 B/param) from full-SGD (4 B/param) at equal trainable-parameter count."""
+    """C3, 2x2 (datasets x {memory, compute}), FIVE SEEDS (frontier_seeds.jsonl; R2):
+    mean +/- std error bars per strategy point. Memory axis = adaptation memory (gradients +
+    optimizer state), which separates full-Adam (12 B/param) from full-SGD (4 B/param) at
+    equal trainable-parameter count. calib is drawn as an OPEN marker on top of head (their
+    adaptation memory is nearly identical, so filled markers would occlude each other)."""
     from frontier import COMBOS, DATASETS, adapt_mem_bytes, pareto
-    data = load("frontier_data.json")
+    seeds = [json.loads(l) for l in open(os.path.join(RES, "frontier_seeds.jsonl"))]
     style = {lab: (mk, col) for _, _, lab, mk, col in COMBOS}
     fig, axes = plt.subplots(2, 2, figsize=(TEXTWIDTH, 5.2))
     for r, name in enumerate(DATASETS):
-        rows = data[name]
+        rows = []
+        for _, _, lab, mk, col in COMBOS:
+            rs = [x for x in seeds if x["dataset"] == name and x["label"] == lab]
+            rows.append(dict(label=lab, params=rs[0]["params"],
+                             ms=float(np.mean([x["ms"] for x in rs])),
+                             benefit=float(np.mean([x["benefit"] for x in rs])),
+                             std=float(np.std([x["benefit"] for x in rs]))))
         for c, (xget, xlab, xname) in enumerate(
                 [(adapt_mem_bytes,
                   "adaptation memory: grads + opt. state (B, $\\downarrow$ better)", "memory"),
@@ -126,10 +134,18 @@ def frontier_paper():
             ax = axes[r, c]
             for row in rows:
                 mk, col = style[row["label"]]
-                ax.scatter(xget(row), row["benefit"], marker=mk, s=55, color=col,
-                           edgecolor="k", lw=0.6, zorder=3)
+                open_mk = "calib" in row["label"]          # drawn hollow, on top of head
+                ax.errorbar(xget(row), row["benefit"], yerr=row["std"], fmt="none",
+                            ecolor=col, elinewidth=0.9, capsize=2, zorder=2)
+                ax.scatter(xget(row), row["benefit"], marker=mk, s=55,
+                           facecolor="none" if open_mk else col, color=col,
+                           edgecolor=col if open_mk else "k", lw=1.2 if open_mk else 0.6,
+                           zorder=4 if open_mk else 3)
             if xname == "memory":
-                pf = pareto([(xget(row), row["benefit"]) for row in rows])
+                # static (no adaptation: 0 B, 0 %) is always available, so any below-zero
+                # point is dominated by it and cannot sit on the frontier
+                pf = pareto([(xget(row), row["benefit"]) for row in rows
+                             if row["benefit"] >= 0])
                 ax.plot([p[0] for p in pf], [p[1] for p in pf], "--", color="0.5", lw=1.0,
                         zorder=1)
                 ax.set_xscale("log")
@@ -139,8 +155,13 @@ def frontier_paper():
                 ax.set_ylabel("adaptation benefit % ($\\uparrow$ better)")
             ax.set_title(f"{PRETTY.get(name, name)}: quality vs {xname}")
             ax.grid(alpha=0.3)
-    handles = [Line2D([0], [0], marker=mk, color="w", markerfacecolor=col,
-                      markeredgecolor="k", markersize=6, label=lab)
+        if name == "appliances":                       # the S IV-B rehearsal failure realized
+            axes[r, 0].annotate("rehearsed picks beyond SGD's\nplateau fail under drift "
+                                "(§IV-B)", xy=(3.0e4, -22), fontsize=5.8, color="0.25")
+    handles = [Line2D([0], [0], marker=mk, color="w",
+                      markerfacecolor="none" if "calib" in lab else col,
+                      markeredgecolor=col if "calib" in lab else "k",
+                      markersize=6, label=lab)
                for _, _, lab, mk, col in COMBOS]
     handles.append(Line2D([0], [0], ls="--", color="0.5", label="Pareto frontier (memory)"))
     fig.legend(handles=handles, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.045),
@@ -203,7 +224,9 @@ def regime_paper():
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.8))
     for o in ("sgd", "adam"):
         M = np.array([[r[o][f"{lr:g}"]["benefit"] for lr in lrs] for r in rows])
-        med, (q1, q3) = np.median(M, axis=0), np.percentile(M, [25, 75], axis=0)
+        M[~np.isfinite(M)] = -1e9          # diverged stream (nan/-inf) = very negative; the
+        med, (q1, q3) = np.median(M, axis=0), np.percentile(M, [25, 75], axis=0)  # curve just
+        # leaves the axis (ylim floor) at those rates, and the counts row still includes them
         axA.plot(lrs, med, "o-", color=COLS[o], label=f"{LABS[o]} (median)", zorder=3)
         axA.fill_between(lrs, q1, q3, color=COLS[o], alpha=0.15)
         for x, n in zip(lrs, (M < 0).sum(axis=0)):     # negative-cell counts along the curve
@@ -224,12 +247,14 @@ def regime_paper():
     axA.legend(loc="lower left", framealpha=0.9)
     axA.grid(alpha=0.3, which="both")
 
-    for r in rows:
+    lo, hi, y_floor = -50, 62, -42        # sel benefits below y_floor (incl. the diverged
+    for r in rows:                        # rehearsed-SGD picks) are clipped to the bottom edge
         mk = "o" if r["L"] == 96 else "^"
         for o in ("sgd", "adam"):
-            axB.scatter(r[o]["0.001"]["benefit"], r[f"sel_benefit_{o}"], marker=mk, s=13,
+            y = r[f"sel_benefit_{o}"]
+            y = y_floor if not (y >= y_floor) else y
+            axB.scatter(r[o]["0.001"]["benefit"], y, marker=mk, s=13,
                         c=COLS[o], alpha=0.7, edgecolors="none", zorder=3)
-    lo, hi = -50, 62
     axB.plot([lo, hi], [lo, hi], color="0.6", lw=0.7, ls=":")
     axB.axhline(0, color="0.4", lw=0.8); axB.axvline(0, color="0.4", lw=0.8)
     n_ad_fix = sum(r["adam"]["0.001"]["benefit"] < 0 for r in rows)
@@ -240,10 +265,10 @@ def regime_paper():
              f"Adam {n_ad_fix}/{n} $\\to$ {n_ad_sel}/{n};  SGD {n_sg_fix}/{n} $\\to$ {n_sg_sel}/{n}",
              transform=axB.transAxes, ha="left", va="top", fontsize=6,
              bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7", lw=0.5))
-    axB.set_xlim(lo, hi); axB.set_ylim(-8, hi)
+    axB.set_xlim(lo, hi); axB.set_ylim(y_floor - 3, hi)
     axB.set_xlabel("benefit % at the fixed default ($10^{-3}$)")
     axB.set_ylabel("benefit % at rehearsed LR")
-    axB.set_title("(B) fair LR rescues Adam; SGD barely moves")
+    axB.set_title("(B) rehearsal rescues Adam; can sink SGD (bottom edge)")
     axB.legend(handles=[
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgd"], markersize=4.5,
                label="full-SGD"),
