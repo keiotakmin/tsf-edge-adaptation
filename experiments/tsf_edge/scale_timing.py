@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from online_eval import load_csv, prep, stream_eval, warmup_model
+from online_eval import SGD_STRAT, load_csv, prep, stream_eval, warmup_model
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATASETS = ["bdg2", "bdg2_fleet", "bdg2_rat_all"]
@@ -26,12 +26,12 @@ for name in DATASETS:
     torch.manual_seed(0); np.random.seed(0)
     d, n_warm, C = prep(data, device=dev)
     model = warmup_model(BB, L, H, C, d, n_warm, WARM, device=dev)
-    r_sgd = stream_eval(model, d, BB, n_warm, L, H, "full_sgd", lr=1e-3, device=dev)
+    r_sgd = stream_eval(model, d, BB, n_warm, L, H, SGD_STRAT, lr=1e-3, device=dev)
     r_adm = stream_eval(model, d, BB, n_warm, L, H, "full_adam", lr=1e-4, device=dev)
     dump[name] = dict(channels=C, sgd_ms=r_sgd["adapt_ms"], adam_ms=r_adm["adapt_ms"],
                       n_updates=r_sgd["n_updates"])
     print(f"{name:14s} {C:>4d} {r_sgd['adapt_ms']:>11.2f} {r_adm['adapt_ms']:>12.2f}")
 
-out = os.path.join(ROOT, "results", "tsf_edge", "scale_timing.json")
+out = os.path.join(ROOT, "results", "tsf_edge", "scale_timing_sgdm.json")
 json.dump(dump, open(out, "w"), indent=2)
 print("saved", out)

@@ -14,6 +14,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# R3: the paper's SGD-family arm is SGD WITH MOMENTUM. torch.optim.SGD's momentum is a free
+# argument, so "torch's default" does not pin momentum=0, and nobody deploys the 0-momentum
+# form; it survives only as a 0-state reference point in the resource discussion. Scripts read
+# this constant so the arm is defined in exactly one place.
+SGD_STRAT = "full_sgdm"
+
 P_EDGE_W = 5.0                                    # assumed edge device power for energy proxy
 
 
@@ -92,6 +98,20 @@ STRATEGIES = {
     "head_sgd":  ("head", "sgd",  0),
     "calib_sgd": ("calib", "sgd", 0),      # PatchTST only (PEFT-style)
 }
+_WHICH = {"full": "all", "head": "head", "calib": "calib"}
+
+
+def make_online_optimizer(okind, params, lr):
+    """Online-optimizer factory for the three arms the paper reports. The extension study's
+    contenders (memory-light, learning-rate-free and non-stationary-online rules) live in a
+    separate module that is not part of this release."""
+    if okind == "sgd":                               # 0 state (retired from the paper; kept
+        return torch.optim.SGD(params, lr=lr)        # so the pre-migration readings reproduce)
+    if okind == "adam":                              # 2x state
+        return torch.optim.Adam(params, lr=lr)
+    if okind == "sgdm":                              # 1x state -- the paper's SGD-family arm
+        return torch.optim.SGD(params, lr=lr, momentum=0.9)
+    raise ValueError(f"unknown online optimizer {okind!r}")
 
 
 @torch.no_grad()
@@ -118,12 +138,19 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
     eval-window-set / update-frequency differences of stride-1 vs stride-H (referee M3)."""
     T = d.shape[0]
     stride = H if stride is None else stride
-    which, okind, state_mult = STRATEGIES[strategy]
+    if strategy in STRATEGIES:
+        which, okind, state_mult = STRATEGIES[strategy]
+    else:                       # e.g. "full_lion", "full_prodigy" (stage-0 extension optimizers)
+        prefix, _, okind = strategy.partition("_")
+        which = _WHICH[prefix]
+        state_mult = None       # unknown a priori -> measured from opt.state after the stream
     model = _clone(model)
     set_trainable(model, backbone, which)
     adapt_params = [p for p in model.parameters() if p.requires_grad] if which else []
-    opt_online = (torch.optim.SGD(adapt_params, lr=lr) if okind == "sgd" else
-                  torch.optim.Adam(adapt_params, lr=lr) if okind == "adam" else None)
+    opt_online = make_online_optimizer(okind, adapt_params, lr) if which else None
+    # ObGD-family rules need the scalar error to size their step; every other optimizer sees
+    # the identical call sequence it saw before this hook existed (results stay comparable).
+    needs_loss = getattr(opt_online, "needs_loss", False)
 
     errs, adapt_t, nupd, peak_mem = [], 0.0, 0, 0
     ema, widx, nwin = None, 0, 0
@@ -151,7 +178,9 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
             if device == "cuda":
                 torch.cuda.reset_peak_memory_stats(); torch.cuda.synchronize()
             t0 = time.perf_counter()
-            opt_online.zero_grad(); F.mse_loss(model(xa), ya).backward(); opt_online.step()
+            opt_online.zero_grad()
+            loss = F.mse_loss(model(xa), ya); loss.backward()
+            opt_online.step(loss=loss.detach()) if needs_loss else opt_online.step()
             if device == "cuda":
                 torch.cuda.synchronize(); peak_mem = max(peak_mem, torch.cuda.max_memory_allocated())
             adapt_t += time.perf_counter() - t0; nupd += 1
@@ -159,9 +188,23 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
 
     n_adapt = sum(p.numel() for p in adapt_params)
     ms = 1000 * adapt_t / max(nupd, 1)
+    if state_mult is not None:            # paper strategies: analytic (verified) multiplier
+        opt_bytes = state_mult * n_adapt * 4
+    else:                                 # extension optimizers: measure the actual state
+        def _tensors(v):
+            if torch.is_tensor(v):
+                return [v]
+            return [t for t in v if torch.is_tensor(t)] if isinstance(v, (list, tuple)) else []
+        seen, opt_bytes = set(), 0        # some (e.g. DoG) keep state in param_groups
+        buckets = [v for st in opt_online.state.values() for v in st.values()]
+        buckets += [v for g in opt_online.param_groups for k, v in g.items() if k != "params"]
+        for v in buckets:
+            for t in _tensors(v):
+                if id(t) not in seen:
+                    seen.add(id(t)); opt_bytes += t.numel() * t.element_size()
     return dict(backbone=backbone, strategy=strategy, mse=float(np.mean(errs)),
                 adapt_ms=ms, n_updates=nupd, update_frac=nupd / max(nwin, 1),
-                n_adapt_params=n_adapt, opt_state_bytes=state_mult * n_adapt * 4,
+                n_adapt_params=n_adapt, opt_state_bytes=opt_bytes,
                 peak_adapt_mem_kb=peak_mem / 1024, energy_mj=ms * P_EDGE_W)
 
 

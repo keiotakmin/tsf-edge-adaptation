@@ -9,7 +9,10 @@ Sources (missing optional files are skipped with a warning):
                                                    readings Fixed(@1e-3)/Sel(val-rehearsed)/Orc
   frontier_data.json         C2 frontier         — benefit% sign: >0 = adaptation BETTER
                                                    (fair LR; BenefitFixed = old fixed-1e-3)
-  staleness_patchtst.json    staleness (optional)— win% sign: >0 = drift-trigger BETTER
+  *_sgdm.json                all C1/staleness/M6/timing artifacts: the SGD-family arm is
+                             SGD+MOMENTUM (online_eval.SGD_STRAT); the momentum-free files are
+                             kept next to them but are no longer read
+  staleness_patchtst_full_sgdm.json  staleness    — win% sign: >0 = drift-trigger BETTER
   staleness_patchtst_full_adam.json               — full-Adam variant (StalAdam* macros)
   leakage_check.json         C1b (optional)      — benefit% sign: >0 = adaptation BETTER;
                                                    inflation pt = leaky - clean
@@ -30,6 +33,15 @@ OUT = os.path.join(RES, "macros.tex")
 sys.path.insert(0, HERE)
 import combined_grid as cg                                  # expected cell count stays in sync
 from online_eval import P_EDGE_W, WARM_GRID                 # single source for energy proxy / cap
+from frontier_timing import load_timing
+
+TIMING = load_timing()
+
+# R3: the paper's SGD-family arm is SGD WITH MOMENTUM (see online_eval.SGD_STRAT). SGDF is the
+# key it is stored under in the result files; SGDN is how it is spelled inside macro names, so
+# a reader of the paper can never mistake a \Lr...Sgdm... value for momentum-free SGD. The
+# momentum-free surfaces stay in the files and can be re-emitted by flipping these two.
+SGDF, SGDN = "sgdm", "Sgdm"
 
 DIG = {"0": "Zero", "1": "One", "2": "Two", "3": "Three", "4": "Four",
        "5": "Five", "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine"}
@@ -82,7 +94,32 @@ expected = len(cg.DATASETS) * len(cg.BACKBONES) * len(cg.HS) * len(cg.LS) * len(
 if len(rows) != expected:
     warnings.append(f"grid.jsonl has {len(rows)}/{expected} cells — PARTIAL, regenerate when done")
 
+# R3: grid.jsonl's SGD column is momentum-FREE SGD, which the paper no longer reports. Its
+# Adam column and its P1/P2/P3 probes (computed on the frozen model, optimizer-independent) are
+# unaffected, so rather than re-running combined_grid.py we substitute the SGD-family benefit
+# from the fair-LR grid at the same fixed 1e-3 rate. That substitution is exact by construction:
+# lr_fairness@1e-3 was verified to reproduce grid.jsonl cell-for-cell to floating point.
+_lrf_at_default = {}
+for _line in open(os.path.join(RES, "lr_fairness.jsonl")):
+    try:
+        _r = json.loads(_line)
+    except json.JSONDecodeError:
+        continue
+    if SGDF in _r and "0.001" in _r[SGDF]:
+        _lrf_at_default[(_r["dataset"], _r["backbone"], _r["L"], _r["H"], _r["seed"])] = \
+            _r[SGDF]["0.001"]["benefit"]
+_missing = 0
+for _r in rows:
+    _k = (_r["dataset"], _r["backbone"], _r["L"], _r["H"], _r["seed"])
+    if _k in _lrf_at_default:
+        _r["benefit_sgd"] = _lrf_at_default[_k]
+    else:
+        _missing += 1
+if _missing:
+    warnings.append(f"C3 grid: {_missing} cells have no {SGDF}@1e-3 reading — still momentum-free")
+
 def winner(r): return "SGD" if r["benefit_sgd"] >= r["benefit_adam"] else "Adam"
+                            # "SGD" here = the SGD-family arm, i.e. SGD+momentum
 
 section("C3 grid (grid.jsonl); benefit% >0 = adaptation better than static")
 bs = [r["benefit_sgd"] for r in rows]
@@ -90,14 +127,14 @@ ba = [r["benefit_adam"] for r in rows]
 emit("GridCells", len(rows))
 emit("GridSeeds", len({r["seed"] for r in rows}))
 emit("GridDatasets", len({r["dataset"] for r in rows}))
-emit("GridSgdFloor", s1(min(bs)))
-emit("GridSgdFloorExact", s1(min(bs), nd=2))         # +0.03 before the 1-dp rounding (minor 4)
-emit("GridSgdNearZeroCells", sum(abs(b) < 0.05 for b in bs))
-emit("GridSgdNegCells", sum(b < 0 for b in bs))
+emit("Grid" + SGDN + "Floor", s1(min(bs)))
+emit("Grid" + SGDN + "FloorExact", s1(min(bs), nd=2))         # +0.03 before the 1-dp rounding (minor 4)
+emit("Grid" + SGDN + "NearZeroCells", sum(abs(b) < 0.05 for b in bs))
+emit("Grid" + SGDN + "NegCells", sum(b < 0 for b in bs))
 emit("GridAdamWorst", s1(min(ba)))
 emit("GridAdamNegCells", sum(b < 0 for b in ba))
 emit("GridAdamNegPct", round(100 * sum(b < 0 for b in ba) / len(ba)))
-emit("GridSgdWins", sum(winner(r) == "SGD" for r in rows))
+emit("Grid" + SGDN + "Wins", sum(winner(r) == "SGD" for r in rows))
 emit("GridAdamWins", sum(winner(r) == "Adam" for r in rows))
 
 configs = {}
@@ -125,7 +162,7 @@ for probe, fmt in [("p3_drift", f2), ("p2_gradcos", f2), ("p1_noise", f3)]:
     win_s = [r[probe] for r in rows if winner(r) == "SGD"]
     win_a = [r[probe] for r in rows if winner(r) == "Adam"]
     base = texname("Grid", probe.split("_")[0])
-    emit(base + "SgdWinMean", fmt(sum(win_s) / len(win_s)))
+    emit(base + SGDN + "WinMean", fmt(sum(win_s) / len(win_s)))
     emit(base + "AdamWinMean", fmt(sum(win_a) / len(win_a)))
     emit(base + "Gap", s1(sum(win_a) / len(win_a) - sum(win_s) / len(win_s),
                           nd=1 if probe == "p3_drift" else 2))
@@ -136,7 +173,7 @@ for ds in sorted({r["dataset"] for r in rows}):
     emit(b + "Cells", len(sub))
     emit(b + "PThree", f2(sum(r["p3_drift"] for r in sub) / len(sub)))
     emit(b + "POne", f3(sum(r["p1_noise"] for r in sub) / len(sub)))
-    emit(b + "SgdWins", sum(winner(r) == "SGD" for r in sub))
+    emit(b + SGDN + "Wins", sum(winner(r) == "SGD" for r in sub))
     emit(b + "AdamWins", sum(winner(r) == "Adam" for r in sub))
     emit(b + "AdamNegCells", sum(r["benefit_adam"] < 0 for r in sub))
 
@@ -144,11 +181,11 @@ for L in sorted({r["L"] for r in rows}):                    # lookback robustnes
     sub = [r for r in rows if r["L"] == L]                  # the Adam-favourable corner)
     b = texname("Grid", "L", L)
     emit(b + "Cells", len(sub))
-    emit(b + "SgdWins", sum(winner(r) == "SGD" for r in sub))
+    emit(b + SGDN + "Wins", sum(winner(r) == "SGD" for r in sub))
     emit(b + "AdamWins", sum(winner(r) == "Adam" for r in sub))
     emit(b + "AdamNegCells", sum(r["benefit_adam"] < 0 for r in sub))
     emit(b + "AdamNegPct", round(100 * sum(r["benefit_adam"] < 0 for r in sub) / len(sub)))
-    emit(b + "SgdFloor", s1(min(r["benefit_sgd"] for r in sub)))
+    emit(b + SGDN + "Floor", s1(min(r["benefit_sgd"] for r in sub)))
     emit(b + "AdamWorst", s1(min(r["benefit_adam"] for r in sub)))
 
 for ds in sorted({r["dataset"] for r in rows}):             # dataset x L cells (cited: Appliances)
@@ -156,7 +193,7 @@ for ds in sorted({r["dataset"] for r in rows}):             # dataset x L cells 
         sub = [r for r in rows if r["dataset"] == ds and r["L"] == L]
         b = texname("Grid", ds, "L", L)
         emit(b + "Cells", len(sub))
-        emit(b + "SgdWins", sum(winner(r) == "SGD" for r in sub))
+        emit(b + SGDN + "Wins", sum(winner(r) == "SGD" for r in sub))
         emit(b + "AdamWins", sum(winner(r) == "Adam" for r in sub))
         emit(b + "AdamNegCells", sum(r["benefit_adam"] < 0 for r in sub))
 
@@ -176,7 +213,7 @@ if os.path.exists(lrf_path):
     # rates present in EVERY cell (both optimizers) — during an in-flight grid extension some
     # cells have the new rates and some do not; pooled per-LR stats must only use the common set
     common_lrs = sorted(set.intersection(
-        *[{float(k) for k in r["sgd"]} & {float(k) for k in r["adam"]} for r in lrf]))
+        *[{float(k) for k in r[SGDF]} & {float(k) for k in r["adam"]} for r in lrf]))
     emit("LrCells", len(lrf))
     emit("LrGridPoints", len(common_lrs))
     emit("LrSeeds", len({r["seed"] for r in lrf}))
@@ -201,9 +238,9 @@ if os.path.exists(lrf_path):
         cfgs = {}
         for r in sub:
             cfgs.setdefault((r["dataset"], r["backbone"], r["L"], r["H"]), []).append(r)
-        aw = sum(sum(get(r, "adam") > get(r, "sgd") for r in v) > len(v) / 2
+        aw = sum(sum(get(r, "adam") > get(r, SGDF) for r in v) > len(v) / 2
                  for v in cfgs.values())
-        unan = sum(sum(get(r, "adam") > get(r, "sgd") for r in v) in (0, len(v))
+        unan = sum(sum(get(r, "adam") > get(r, SGDF) for r in v) in (0, len(v))
                    for v in cfgs.values())
         return len(cfgs), aw, unan
 
@@ -212,16 +249,16 @@ if os.path.exists(lrf_path):
         base = texname("Lr", "L", Lv)
         emit(base + "Cells", len(sub))
         for rd, get in readings.items():
-            b_s = [get(r, "sgd") for r in sub]
+            b_s = [get(r, SGDF) for r in sub]
             b_a = [get(r, "adam") for r in sub]
             b = base + rd
-            emit(b + "SgdWins", sum(s >= a for s, a in zip(b_s, b_a)))
+            emit(b + SGDN + "Wins", sum(s >= a for s, a in zip(b_s, b_a)))
             emit(b + "AdamWins", sum(a > s for s, a in zip(b_s, b_a)))
             s_neg, s_div, s_worst = _negstats(b_s)
             a_neg, a_div, a_worst = _negstats(b_a)
-            emit(b + "SgdNegCells", s_neg)
-            emit(b + "SgdDivCells", s_div)
-            emit(b + "SgdMin", s1(s_worst))
+            emit(b + SGDN + "NegCells", s_neg)
+            emit(b + SGDN + "DivCells", s_div)
+            emit(b + SGDN + "Min", s1(s_worst))
             emit(b + "AdamNegCells", a_neg)
             emit(b + "AdamDivCells", a_div)
             emit(b + "AdamNegPct", round(100 * a_neg / len(b_a)))
@@ -232,44 +269,51 @@ if os.path.exists(lrf_path):
             emit(b + "MedianGapPt", s1(_median(gaps)))
             ncfg, aw, unan = _cfg_stats(sub, get)
             emit(b + "CfgAdamWins", aw)
-            emit(b + "CfgSgdWins", ncfg - aw)
+            emit(b + "Cfg" + SGDN + "Wins", ncfg - aw)
             emit(b + "CfgUnanimous", unan)
     for lr in common_lrs:                                   # pooled per-LR plateau statistics
-        for o in ("sgd", "adam"):
+        for o in (SGDF, "adam"):
             vals = [r[o][f"{lr:g}"]["benefit"] for r in lrf]
             fin = [v for v in vals if v == v]                # a NaN mse (diverged stream at an
             b = texname("Lr", o) + "At" + LRNAME[lr]         # extreme rate) counts as negative;
             emit(b + "NegCells", sum(v < 0 for v in fin) + len(vals) - len(fin))
             emit(b + "Mean", s1(sum(fin) / len(fin)))        # mean/min are over finite cells
             emit(b + "Min", s1(min(fin)))
+        # head-to-head at this SHARED fixed rate (cited: the fixed-1e-4 ranking reversal); a
+        # NaN benefit (diverged stream) never wins, matching the NegCells convention above
+        b_s = [r[SGDF][f"{lr:g}"]["benefit"] for r in lrf]
+        b_a = [r["adam"][f"{lr:g}"]["benefit"] for r in lrf]
+        emit("LrAdamWinsAt" + LRNAME[lr], sum(a > s for s, a in zip(b_s, b_a)))
     # selection behaviour (pooled over all cells)
     emit("LrAdamSelLeqThreeEMinusFourCells", sum(r["sel_lr_adam"] <= 3e-4 for r in lrf))
     emit("LrAdamSelGeqOneEMinusThreeCells", sum(r["sel_lr_adam"] >= 1e-3 for r in lrf))
-    emit("LrSgdSelGeqOneEMinusThreeCells", sum(r["sel_lr_sgd"] >= 1e-3 for r in lrf))
-    s_neg, s_div, s_worst = _negstats([r["sel_benefit_sgd"] for r in lrf])
+    emit("Lr" + SGDN + "SelGeqOneEMinusThreeCells", sum(r[f"sel_lr_{SGDF}"] >= 1e-3 for r in lrf))
+    s_neg, s_div, s_worst = _negstats([r[f"sel_benefit_{SGDF}"] for r in lrf])
     a_neg, a_div, a_worst = _negstats([r["sel_benefit_adam"] for r in lrf])
-    emit("LrSgdSelNegCellsAll", s_neg)
-    emit("LrSgdSelDivCellsAll", s_div)
-    emit("LrSgdSelMinAll", s1(s_worst))
+    emit("Lr" + SGDN + "SelNegCellsAll", s_neg)
+    emit("Lr" + SGDN + "SelDivCellsAll", s_div)
+    emit("Lr" + SGDN + "SelMinAll", s1(s_worst))
     emit("LrSelAdamNegCellsAll", a_neg)
     emit("LrSelAdamMinAll", s1(a_worst))
     # R1 grid-top extension: selection/bracketing behaviour at the two added rates (3e-2, 1e-1)
     top = max(common_lrs)
     below_top = common_lrs[-2]
-    emit("LrSgdSelExtCells", sum(r["sel_lr_sgd"] >= 3e-2 for r in lrf))
+    emit("Lr" + SGDN + "SelExtCells", sum(r[f"sel_lr_{SGDF}"] >= 3e-2 for r in lrf))
     emit("LrAdamSelExtCells", sum(r["sel_lr_adam"] >= 3e-2 for r in lrf))
-    emit("LrSgdOrcAtTopCells", sum(r["oracle_lr_sgd"] == top for r in lrf))
-    emit("LrSgdOrcTopRiseMaxPt", s1(max(
-        r["sgd"][f"{top:g}"]["benefit"] - r["sgd"][f"{below_top:g}"]["benefit"]
-        for r in lrf if r["oracle_lr_sgd"] == top)))
-    sel_neg = [r for r in lrf if not (r["sel_benefit_sgd"] >= 0)]
-    emit("LrSgdSelNegAppliancesDlinearCells",
+    emit("Lr" + SGDN + "OrcAtTopCells", sum(r[f"oracle_lr_{SGDF}"] == top for r in lrf))
+    _top_rise = [r[SGDF][f"{top:g}"]["benefit"] - r[SGDF][f"{below_top:g}"]["benefit"]
+                 for r in lrf if r[f"oracle_lr_{SGDF}"] == top]
+    if _top_rise:
+        emit("Lr" + SGDN + "OrcTopRiseMaxPt", s1(max(_top_rise)))
+    sel_neg = [r for r in lrf if not (r[f"sel_benefit_{SGDF}"] >= 0)]
+    emit("Lr" + SGDN + "SelNegAppliancesDlinearCells",
          sum(r["dataset"] == "appliances" and r["backbone"] == "dlinear" for r in sel_neg))
     # by how much did the picks that go on to DIVERGE win their rehearsals? (the val slice
     # sees only a marginal advantage where the test stream later explodes)
-    emit("LrSgdSelDivValMarginMaxPct", f1(max(
-        100 * (1 - r["sgd"][f"{r['sel_lr_sgd']:g}"]["val"] / r["sgd"]["0.001"]["val"])
-        for r in sel_neg if not (r["sel_benefit_sgd"] >= DIV))))
+    _div_margin = [100 * (1 - r[SGDF][f"{r[f'sel_lr_{SGDF}']:g}"]["val"] / r[SGDF]["0.001"]["val"])
+                   for r in sel_neg if not (r[f"sel_benefit_{SGDF}"] >= DIV)]
+    if _div_margin:
+        emit("Lr" + SGDN + "SelDivValMarginMaxPct", f1(max(_div_margin)))
     # the no-free-fix check: a conservative rule (smallest rate within 2% of the best val
     # MSE) repairs the diverged picks but costs benefit almost everywhere else
     def _tol_sel(r, o, tol=0.02):
@@ -279,21 +323,21 @@ if os.path.exists(lrf_path):
         return next(lr for lr in grid if r[o][f"{lr:g}"]["val"] <= (1 + tol) * best)
     deltas = []
     for r in lrf:
-        g = _tol_sel(r, "sgd")
-        if g != r["sel_lr_sgd"]:
-            deltas.append(r["sgd"][f"{g:g}"]["benefit"] - r["sel_benefit_sgd"])
+        g = _tol_sel(r, SGDF)
+        if g != r[f"sel_lr_{SGDF}"]:
+            deltas.append(r[SGDF][f"{g:g}"]["benefit"] - r[f"sel_benefit_{SGDF}"])
     emit("LrTolGuardChangedCells", len(deltas))
     emit("LrTolGuardMedianCostPt", f1(-_median([d for d in deltas if abs(d) <= -DIV])))
     # skeptic reading: deployable (rehearsed) Adam vs SGD's unattainable per-cell test-oracle
-    emit("LrSelAdamVsOrcSgdWins",
-         sum(r["sel_benefit_adam"] > r["oracle_benefit_sgd"] for r in lrf))
-    emit("LrSelAdamVsOrcSgdMedianPt", s1(_median(
-        [r["sel_benefit_adam"] - r["oracle_benefit_sgd"] for r in lrf]), nd=2))
+    emit("LrSelAdamVsOrc" + SGDN + "Wins",
+         sum(r["sel_benefit_adam"] > r[f"oracle_benefit_{SGDF}"] for r in lrf))
+    emit("LrSelAdamVsOrc" + SGDN + "MedianPt", s1(_median(
+        [r["sel_benefit_adam"] - r[f"oracle_benefit_{SGDF}"] for r in lrf]), nd=2))
     # pooled three-reading win counts (abstract/intro cite these)
     for rd, get in readings.items():
-        b_s = [get(r, "sgd") for r in lrf]
+        b_s = [get(r, SGDF) for r in lrf]
         b_a = [get(r, "adam") for r in lrf]
-        emit("Lr" + rd + "SgdWinsAll", sum(s >= a for s, a in zip(b_s, b_a)))
+        emit("Lr" + rd + SGDN + "WinsAll", sum(s >= a for s, a in zip(b_s, b_a)))
         emit("Lr" + rd + "AdamWinsAll", sum(a > s for s, a in zip(b_s, b_a)))
         gaps = [a - s for s, a in zip(b_s, b_a)]
         bounded_gaps = [g for g in gaps if abs(g) <= -DIV]     # excl. diverged-SGD cells
@@ -301,7 +345,7 @@ if os.path.exists(lrf_path):
         emit("Lr" + rd + "MedianGapPtAll", s1(_median(gaps)))
         ncfg, aw, unan = _cfg_stats(lrf, get)
         emit("Lr" + rd + "CfgAdamWinsAll", aw)
-        emit("Lr" + rd + "CfgSgdWinsAll", ncfg - aw)
+        emit("Lr" + rd + "Cfg" + SGDN + "WinsAll", ncfg - aw)
         emit("Lr" + rd + "CfgUnanimousAll", unan)
         if rd == "Sel":                     # two-sided binomial sign test on the config-level
             from math import comb           # winners (guards the seeds-as-samples objection)
@@ -311,21 +355,50 @@ if os.path.exists(lrf_path):
             while p < 1:                    # 1-sig-fig scientific form for use in math mode
                 p *= 10; e -= 1
             emit("LrSelCfgSignPAll", f"{round(p)}{{\\times}}10^{{{e}}}" if e else f1(p))
+            # (R3) the 72 configs are NESTED -- 6 series x 2 backbones x 3 H x 2 L -- so a sign
+            # test that treats them as independent overstates its evidence. Repeat it on the two
+            # coarser partitions whose members ARE distinct series/models, and report those.
+            for lvl, keyf in (("DsBb", lambda r: (r["dataset"], r["backbone"])),
+                              ("Ds", lambda r: r["dataset"])):
+                cl = {}
+                for r in lrf:
+                    cl.setdefault(keyf(r), []).append(get(r, "adam") > get(r, SGDF))
+                won = sum(sum(v) * 2 > len(v) for v in cl.values())
+                n = len(cl)
+                emit("LrSelCluster" + lvl + "Adam", won)
+                emit("LrSelCluster" + lvl + "Total", n)
+                kk = max(won, n - won)
+                pc = min(1.0, sum(comb(n, i) for i in range(kk, n + 1)) / 2 ** (n - 1))
+                if pc >= 0.01:                       # plain decimal while it is readable
+                    emit("LrSelCluster" + lvl + "P", f2(pc))
+                else:                                # else 1-sig-fig scientific, math mode
+                    ee = 0
+                    while pc < 1:
+                        pc *= 10; ee -= 1
+                    emit("LrSelCluster" + lvl + "P", f"{round(pc)}{{\\times}}10^{{{ee}}}")
+            # (R3) "unanimous" counted BOTH directions; split it so the text cannot be misread
+            # as "53 of the Adam-winning configs".
+            cfgs = {}
+            for r in lrf:
+                cfgs.setdefault((r["dataset"], r["backbone"], r["L"], r["H"]), []).append(
+                    get(r, "adam") > get(r, SGDF))
+            emit("LrSelCfgUnanimousAdam", sum(all(v) for v in cfgs.values()))
+            emit("LrSelCfgUnanimous" + SGDN, sum(not any(v) for v in cfgs.values()))
     emit("LrConfigs", len({(r["dataset"], r["backbone"], r["L"], r["H"]) for r in lrf}))
     for Hv in sorted({r["H"] for r in lrf}):                # per-horizon robustness (compact)
         sub = [r for r in lrf if r["H"] == Hv]
         b = texname("Lr", "H", Hv)
         emit(b + "Cells", len(sub))
-        emit(b + "SelAdamWins", sum(r["sel_benefit_adam"] > r["sel_benefit_sgd"] for r in sub))
+        emit(b + "SelAdamWins", sum(r["sel_benefit_adam"] > r[f"sel_benefit_{SGDF}"] for r in sub))
         emit(b + "SelAdamNegCells", sum(r["sel_benefit_adam"] < 0 for r in sub))
     # M5: BDG2 extension subsets (fair-LR H24/L96/3-seed cells; NOT part of the C3 stats)
     def _val_chosen(r):
         """Fully deployable per-seed reading (referee N1): the OPTIMIZER, like its rate, is
         chosen by validation online MSE (each optimizer at its own rehearsed rate); the test
         benefit of that choice is reported. No test data enters any selection."""
-        v_s = r["sgd"][f"{r['sel_lr_sgd']:g}"]["val"]
+        v_s = r[SGDF][f"{r[f'sel_lr_{SGDF}']:g}"]["val"]
         v_a = r["adam"][f"{r['sel_lr_adam']:g}"]["val"]
-        return r["sel_benefit_sgd"] if v_s <= v_a else r["sel_benefit_adam"]
+        return r[f"sel_benefit_{SGDF}"] if v_s <= v_a else r["sel_benefit_adam"]
 
     extras = sorted({r["dataset"] for r in lrf_all} - core)
     if extras:
@@ -358,19 +431,32 @@ if os.path.exists(fs_path):
     for r in fs:
         groups.setdefault((r["dataset"], r["label"]), []).append(r)
     emit("FroSeeds", len({r["seed"] for r in fs}))
-    energies, params_by = [], {}
+    energies, mss, params_by = [], [], {}
     for (ds, lab), rows_ in sorted(groups.items()):
         b = texname("Fro", ds, lab)
         bens = [r["benefit"] for r in rows_ if abs(r["benefit"]) <= 100]
         fixd = [r["benefit_fixed"] for r in rows_ if abs(r["benefit_fixed"]) <= 100]
-        ms = sum(r["ms"] for r in rows_) / len(rows_)
+        # per-update wall-clock comes from the CONTROLLED measurement (frontier_timing.py);
+        # the in-stream mean carried in frontier_seeds.jsonl is warm-up- and contention-biased
+        # to the point of inverting the SGD+m-vs-Adam ordering, so it is only the fallback
+        ms = TIMING.get((ds, lab), sum(r["ms"] for r in rows_) / len(rows_))
         emit(b + "Benefit", s1(sum(bens) / len(bens)))
         emit(b + "BenefitStd", f1(statistics.pstdev(bens)))
         emit(b + "BenefitFixed", s1(sum(fixd) / len(fixd)))
         emit(b + "Params", f"{rows_[0]['params']:,}")
         emit(b + "Ms", f2(ms))
         emit(b + "EnergyMilliJoule", f1(ms * P_EDGE_W))
-        energies.append(ms * P_EDGE_W)
+        # the frontier's x axis in kB, so the text can cite it instead of eyeballing Fig. 4;
+        # adapt_mem_bytes prefers the MEASURED optimizer state when the run recorded it
+        from frontier import adapt_mem_bytes as _amb
+        emit(b + "MemKb", f"{_amb(rows_[0]) / 1000:,.0f}")
+        # Pooled ms/energy ranges cover only the points the paper REPORTS, i.e. those with a
+        # controlled timing. frontier_seeds.jsonl still carries the retired momentum-free SGD
+        # points, whose timings come from the old in-stream estimator; letting them set the
+        # range would quote a number no figure shows and no strategy in the paper uses.
+        if (ds, lab) in TIMING:
+            energies.append(ms * P_EDGE_W)
+            mss.append(ms)
         params_by.setdefault(ds, {})[lab] = rows_[0]["params"]
     for ds, p in params_by.items():
         full, calib = p.get("PatchTST full·SGD"), p.get("PatchTST calib·SGD")
@@ -378,13 +464,20 @@ if os.path.exists(fs_path):
             emit(texname("Fro", ds) + "FullOverCalibParams", f1(full / calib))
     emit("FroEnergyMinMj", f1(min(energies)))
     emit("FroEnergyMaxMj", f1(max(energies)))
+    # Duty cycle, not energy, is the honest way to say "compute is not binding": it needs no
+    # power assumption (the 5 W proxy cancels), so the claim survives the caveat in the
+    # Discussion. One update per revealed horizon at H=24 on an hourly meter = 365 updates/yr.
+    emit("FroMsMin", f2(min(mss)))
+    emit("FroMsMax", f2(max(mss)))
+    emit("FroSecPerYearMin", f2(min(mss) * 365 / 1000))
+    emit("FroSecPerYearMax", f2(max(mss) * 365 / 1000))
 else:
     warnings.append("missing frontier_seeds.jsonl (run frontier_seeds.py)")
 
 # ---------- staleness ----------
-stal = load_optional("staleness_patchtst.json")
+stal = load_optional("staleness_patchtst_full_sgdm.json")
 if stal:
-    section("staleness (staleness_patchtst.json); win% >0 = drift-trigger beats periodic "
+    section("staleness (staleness_patchtst_full_sgdm.json); win% >0 = drift-trigger beats periodic "
             "@budget (mean +/- std over seeds where present)")
     for ds, r in stal.items():
         b = texname("Stal", ds)
@@ -410,12 +503,13 @@ if stal_a:
                 emit(b + "WinPctStd", f1(r["win_pct_std"]))
 
 # ---------- C1a warmup confound ----------
-wc = load_optional("warmup_confound.json")
+wc = load_optional("warmup_confound_sgdm.json")
 if wc:
-    section("C1a warmup confound (warmup_confound.json); values NEGATED to the paper-wide "
+    section("C1a warmup confound (warmup_confound_sgdm.json); values NEGATED to the paper-wide "
             "positive-good convention (improvement% >0 = adaptation better; minor 1). "
             "InflPt = improvement minus sweet-spot improvement (>0 = benefit INFLATED)")
     n_under_infl = n_over_infl = 0
+    u_infls, o_infls = [], []
     for key, r in wc.items():
         b = texname("Wc", *key.split("|"))
         emit(b + "Under", s1(-r["under"]))
@@ -432,20 +526,44 @@ if wc:
         emit(b + "OverInflPt", s1(o_infl))
         n_under_infl += u_infl > 0
         n_over_infl += o_infl > 0
+        u_infls.append(u_infl)
+        o_infls.append(o_infl)
     emit("WcSettings", len(wc))
-    emit("WcUnderInflatedCount", n_under_infl)           # 5/6: Appliances/PatchTST is a tie
+    emit("WcUnderInflatedCount", n_under_infl)           # 6/6; the smallest is a statistical tie
     emit("WcOverInflatedCount", n_over_infl)             # 6/6 on the seed-mean
+    # The prose quotes the SPREAD of the inflation across settings. Emit its endpoints instead of
+    # naming two settings by hand: which setting is extremal moves when the arms are re-run (the
+    # SGD -> SGD+momentum migration moved BOTH ends), and a hand-picked pair then silently
+    # misstates the range while every individual number in the table stays correct.
+    emit("WcUnderInflMinPt", s1(min(u_infls)))
+    emit("WcUnderInflMaxPt", s1(max(u_infls)))
+    emit("WcOverInflMinPt", s1(min(o_infls)))
+    emit("WcOverInflMaxPt", s1(max(o_infls)))
+    # (R3) pre-empt the straw-man reading of the endpoints. 50 steps and 50000 steps are easy to
+    # dismiss as budgets nobody would pick; the confound survives without them, so quantify the
+    # spread of the reported benefit over the range a practitioner WOULD plausibly consider.
+    LO, HI = 1000, 20000
+    spreads = {}
+    for key, r in wc.items():
+        idx = [i for i, m in enumerate(r["milestones"]) if LO <= m <= HI]
+        vals = [-r["benefit_mean"][i] for i in idx]
+        spreads[key] = max(vals) - min(vals)
+        emit(texname("Wc", *key.split("|")) + "PracticalSpreadPt", f1(spreads[key]))
+    emit("WcPracticalLo", LO)
+    emit("WcPracticalHi", HI)
+    emit("WcPracticalSpreadMinPt", f1(min(spreads.values())))
+    emit("WcPracticalSpreadMaxPt", f1(max(spreads.values())))
 
 # ---------- W1 scalability timing ----------
-sc = load_optional("scale_timing.json")
+sc = load_optional("scale_timing_sgdm.json")
 if sc:
-    section("W1 scalability (scale_timing.json); per-update adaptation wall-clock, PatchTST, "
+    section("W1 scalability (scale_timing_sgdm.json); per-update adaptation wall-clock, PatchTST, "
             "SGD@1e-3 / Adam@1e-4")
     for ds, r in sc.items():
         b = texname("Sc", ds)
         emit(b + "Channels", r["channels"])
-        emit(b + "SgdMs", f1(r["sgd_ms"]))
-        emit(b + "AdamMs", f1(r["adam_ms"]))
+        emit(b + SGDN + "Ms", f1(TIMING.get((ds, "scale full_sgdm"), r["sgd_ms"])))
+        emit(b + "AdamMs", f1(TIMING.get((ds, "scale full_adam"), r["adam_ms"])))
 
 # ---------- LR-transient guard (Fig 5A collapse = steady-state, not startup transient) ----------
 lt = load_optional("lr_transient.json")
@@ -461,7 +579,7 @@ if lt:
             emit(b + "LastHundred", f2(a["last_hundred"]))
 
 # ---------- M6: warmup confound across strategies ----------
-m6 = load_optional("m6_strategies.json")
+m6 = load_optional("m6_strategies_sgdm.json")
 if m6:
     section("M6 strategy-generality of the warmup confound (m6_strategies.json); "
             "improvement% >0 = adaptation better; InflPt >0 = benefit inflated vs sweet spot")
@@ -477,7 +595,7 @@ if m6:
             emit(b + "OverInflPt", s1(s["over_infl"]))
 
 # ---------- C1b leakage check ----------
-lk = load_optional("leakage_check.json")
+lk = load_optional("leakage_check_sgdm.json")
 if lk:
     section("C1b leakage check (leakage_check.json); benefit% >0 = adaptation better; "
             "leak pt = leaky - delayed (the leak proper, M3); evalset pt = delayed - clean; "
@@ -503,7 +621,7 @@ if lk:
         emit("LkEvalsetMaxPt", s1(max(evs)))
 
 # ---------- C1c validation protocol ----------
-vp = load_optional("validation_protocol.json")
+vp = load_optional("validation_protocol_sgdm.json")
 if vp:
     section("C1c deployable protocol (validation_protocol.json); improvement% >0 = adaptation better")
     for key, r in vp.items():
@@ -515,6 +633,55 @@ if vp:
         emit(b + "Delta", s1(r["delta"]))
     emit("VpDeltaMinPt", s1(min(r["delta"] for r in vp.values())))
     emit("VpDeltaMaxPt", s1(max(r["delta"] for r in vp.values())))
+
+# ---------- dataset composition (R3: what is actually being forecast) ----------
+# The Appliances stream is multivariate and the two energy channels are a small share of it, so
+# the loss the paper reports is dominated by the indoor/outdoor sensor channels. Stated in III
+# rather than left for a reader of the public code to discover.
+try:
+    import numpy as _np
+    from online_eval import load_csv as _load_csv
+    _d = _load_csv(os.path.join(HERE, "data", "appliances.csv"))
+    _T = _d.shape[0]
+    _n = int(_T * 0.5)                                    # prep()'s warmup_frac
+    _z = (_d - _d[:_n].mean(0)) / (_d[:_n].std(0) + 1e-8)  # prep()'s z-normalisation
+    _v = (_z[_n:] ** 2).mean(0)
+    section("Dataset composition (appliances.csv through load_csv, i.e. after date/rv1/rv2 are "
+            "dropped); share = fraction of the z-normalised test-half variance the paper's MSE "
+            "is taken over")
+    emit("ApplChannels", _d.shape[1])
+    emit("ApplEnergyChannels", 2)                         # Appliances, lights (first two columns)
+    emit("ApplSensorChannels", _d.shape[1] - 2)
+    emit("ApplEnergySharePct", f1(100 * _v[:2].sum() / _v.sum()))
+    emit("ApplSensorSharePct", f1(100 * _v[2:].sum() / _v.sum()))
+except Exception as _e:                                   # never block macro generation on this
+    warnings.append(f"dataset composition skipped: {type(_e).__name__}: {_e}")
+
+# ---------- R3: two quantities the reviewer asked us to state rather than assert ----------
+try:
+    import numpy as _np2, csv as _csv
+    _vp = load_optional("validation_protocol_sgdm.json")
+    if _vp:
+        section("C1c: rank correlation between the held-out validation curve and the static "
+                "TEST curve (Fig. 2 claims the former 'tracks' the latter; this quantifies it)")
+        def _sp(a, b):
+            ra, rb = _np2.argsort(_np2.argsort(a)), _np2.argsort(_np2.argsort(b))
+            return float(_np2.corrcoef(ra, rb)[0, 1])
+        _rs = [_sp(_np2.array(v["val_mean"]), _np2.array(v["static_mean"])) for v in _vp.values()]
+        emit("VpSpearmanMin", f2(min(_rs)))
+        emit("VpSpearmanMax", f2(max(_rs)))
+    section("BDG2 subset regularity: share of consecutive-equal samples, i.e. how much of a "
+            "series is gap-fill rather than movement (the anti-selected subset is mostly fill)")
+    for _f, _n in (("bdg2", "BdgTwo"), ("bdg2_rat_worst", "BdgTwoRatWorst")):
+        _p = os.path.join(HERE, "data", _f + ".csv")
+        if not os.path.exists(_p):
+            continue
+        _rows = list(_csv.reader(open(_p)))
+        _d = _np2.array([[float(x) if x else _np2.nan for x in r[1:]] for r in _rows[1:]])
+        _rep = [float((_np2.diff(_d[:, j]) == 0).mean()) * 100 for j in range(_d.shape[1])]
+        emit("Data" + _n + "RepeatPct", f1(float(_np2.median(_rep))))
+except Exception as _e:
+    warnings.append(f"R3 extras skipped: {type(_e).__name__}: {_e}")
 
 emit("MacrosDate", datetime.date.today().isoformat())
 

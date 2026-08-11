@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from online_eval import build_model, stream_eval, load_csv, prep
+from online_eval import SGD_STRAT, build_model, stream_eval, load_csv, prep
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MILESTONES = [50, 100, 200, 500, 1000, 2000, 4000, 8000, 20000, 50000]
@@ -41,7 +41,7 @@ def trajectory(data, backbone, seed):
         opt.zero_grad(); F.mse_loss(model(x), y).backward(); opt.step()
         if step in MILESTONES:
             stat.append(stream_eval(model, d, backbone, n_warm, L, H, "static", device=dev)["mse"])
-            adap.append(stream_eval(model, d, backbone, n_warm, L, H, "full_sgd", device=dev)["mse"])
+            adap.append(stream_eval(model, d, backbone, n_warm, L, H, SGD_STRAT, device=dev)["mse"])
     return np.array(stat), np.array(adap)
 
 
@@ -67,7 +67,7 @@ for r, name in enumerate(DATASETS):
         ax = axes[r, c]
         ax.plot(MILESTONES, sm, "o-", color="0.35", label="static (no adapt)")
         ax.fill_between(MILESTONES, sm - ss, sm + ss, color="0.35", alpha=0.15)
-        ax.plot(MILESTONES, am, "s-", color="#1f77b4", label="full_sgd (adapt)")
+        ax.plot(MILESTONES, am, "s-", color="#1f77b4", label="full_sgd+m (adapt)")
         ax.fill_between(MILESTONES, am - asd, am + asd, color="#1f77b4", alpha=0.15)
         ax.axvline(MILESTONES[j], color="green", ls=":", lw=1, label="sweet spot")
         ax.set_xscale("log"); ax.set_ylabel("online MSE"); ax.set_xlabel("warmup steps")
@@ -84,5 +84,5 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 out = os.path.join(ROOT, "results", "tsf_edge")
 for ext in ("png", "pdf"):
     fig.savefig(os.path.join(out, f"warmup_confound.{ext}"), dpi=150, bbox_inches="tight")
-json.dump(dump, open(os.path.join(out, "warmup_confound.json"), "w"), indent=2)
+json.dump(dump, open(os.path.join(out, "warmup_confound_sgdm.json"), "w"), indent=2)
 print("\nsaved", os.path.join(out, "warmup_confound.png"))

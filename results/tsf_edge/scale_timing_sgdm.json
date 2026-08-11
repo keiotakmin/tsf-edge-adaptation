@@ -1,0 +1,20 @@
+{
+  "bdg2": {
+    "channels": 15,
+    "sgd_ms": 3.5783660575773006,
+    "adam_ms": 3.8819908971375185,
+    "n_updates": 365
+  },
+  "bdg2_fleet": {
+    "channels": 240,
+    "sgd_ms": 5.402032373001008,
+    "adam_ms": 5.056289119059092,
+    "n_updates": 365
+  },
+  "bdg2_rat_all": {
+    "channels": 280,
+    "sgd_ms": 5.615310783000433,
+    "adam_ms": 6.127603338355173,
+    "n_updates": 365
+  }
+}

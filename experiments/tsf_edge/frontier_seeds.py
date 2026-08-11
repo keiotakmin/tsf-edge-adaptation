@@ -28,6 +28,23 @@ COMBOS = [  # (backbone, strategy, label) -- keep labels identical to frontier.p
     ("patchtst", "calib_sgd", "PatchTST calib·SGD"),
     ("dlinear", "full_sgd", "DLinear full·SGD"),
     ("dlinear", "head_sgd", "DLinear head·SGD"),
+    # R3 (adversarial review, 2026-08-08): the recipe recommends BOTH Adam at its rehearsed
+    # rate AND updating few parameters, but their combination was never on the frontier -- so
+    # the memory axis had only 4 B/param (SGD) and 12 B/param (Adam) and nothing between.
+    # calib/head x Adam are the PEFT x Adam points; SGD+momentum is the missing 8 B/param rung.
+    # stream_eval resolves "<prefix>_<optimizer>" generically, so no new STRATEGIES entry is
+    # needed and the optimizer state is MEASURED rather than assumed for these points.
+    ("patchtst", "calib_adam", "PatchTST calib·Adam"),
+    ("patchtst", "head_adam", "PatchTST head·Adam"),
+    ("patchtst", "full_sgdm", "PatchTST full·SGD+m"),
+    ("dlinear", "head_adam", "DLinear head·Adam"),
+    ("dlinear", "full_sgdm", "DLinear full·SGD+m"),
+    # completes the strategy x optimizer grid: every parameter subset now has all three
+    # optimizers, so no cell of the recipe is inferred rather than observed.
+    ("patchtst", "head_sgdm", "PatchTST head·SGD+m"),
+    ("patchtst", "calib_sgdm", "PatchTST calib·SGD+m"),
+    ("dlinear", "full_adam", "DLinear full·Adam"),
+    ("dlinear", "head_sgdm", "DLinear head·SGD+m"),
 ]
 SEEDS = [0, 1, 2, 3, 4]
 L, H, dev = 96, 24, "cuda"
@@ -65,6 +82,8 @@ def main():
                 row = dict(dataset=name, seed=seed, label=lab, backbone=bb, strategy=strat,
                            L=L, H=H, warmup=wstep, static=base[bb],
                            params=r["n_adapt_params"], ms=r["adapt_ms"], lr=sel,
+                           opt_state_bytes=r["opt_state_bytes"],
+                           peak_adapt_mem_kb=r["peak_adapt_mem_kb"],
                            benefit=100 * (base[bb] - r["mse"]) / base[bb],
                            benefit_fixed=100 * (base[bb] - r0["mse"]) / base[bb])
                 with open(OUT, "a") as f:

@@ -40,15 +40,16 @@ python experiments/tsf_edge/combined_grid.py # e.g. the 360-cell grid
 
 | Paper item | Script | Artifact | Runtime (1x A100) |
 |---|---|---|---|
-| Table I + Fig. 1 (C1a warmup confound) | `warmup_confound.py` | `warmup_confound.json` | ~1.5 h |
-| Fig. 2 (C1c deployable protocol) | `validation_protocol.py` | `validation_protocol.json` | ~1 h |
-| C1b leak inflation numbers | `leakage_check.py` | `leakage_check.json` | ~10 min |
+| Table I + Fig. 1 (C1a warmup confound) | `warmup_confound.py` | `warmup_confound_sgdm.json` | ~1.5 h |
+| Fig. 2 (C1c deployable protocol, 6 panels) | `validation_protocol.py` | `validation_protocol_sgdm.json` | ~1.5 h |
+| C1b leak inflation numbers | `leakage_check.py` | `leakage_check_sgdm.json` | ~10 min |
 | Fig. 4 (C3 frontier, 5 seeds) | `frontier_seeds.py` | `frontier_seeds.jsonl` (frontier_data.json = the retired seed-0 run) | ~30 min |
-| Fig. 5 (staleness, SGD + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
+| Fig. 5 (staleness, SGD+m + Adam rows) | `staleness.py` / `staleness.py --strategy full_adam` | `staleness_patchtst_full_sgdm.json` / `staleness_patchtst_full_adam.json` | ~15 min each |
 | C2 default-rate statistics (the confound at scale) | `combined_grid.py` | `grid.jsonl` (360 cells) | ~13 h |
 | Fig. 3 + Table II (C2 LR-fairness: three readings, plateaus) | `lr_fairness.py` (`--L/--H/--seeds`) | `lr_fairness.jsonl` (full 360-cell design, 10-rate grid) | ~16 h total |
 | Supplementary: the warmup confound across four strategies (not in the paper — cut for page budget; figure `m6_strategies_paper.pdf`) | `m6_strategies.py` | `m6_strategies.json` | ~2 h |
 | Table III (BDG2 meter-selection & scale study) | `prep_bdg2_subsets.py`, then `lr_fairness.py --datasets bdg2_fox,bdg2_panther,bdg2_rat_worst,bdg2_rat_all,bdg2_fleet` | `bdg2_*.csv` + rows in `lr_fairness.jsonl` | ~40 min (15-meter subsets); hours for site/fleet |
+| Per-update wall-clock (Fig. 4 compute axis, scale timings) | `frontier_timing.py` | `frontier_timing.json` | ~2 min |
 | Every number in the paper | `gen_macros.py` | `macros.tex` | seconds, no GPU |
 | Every figure in the paper | `paper_figs.py` | `*_paper.pdf` | seconds, no GPU |
 
@@ -68,6 +69,18 @@ val-selected / test-oracle readings per optimizer.
 - **Warmup-fair baselines**: the warmup budget is picked by early-stopping on a held-out
   pre-drift validation slice (`online_eval.py:warm_and_select`), never on test data. All
   downstream measurements share this one selection procedure.
+- **SGD means SGD with momentum.** `torch.optim.SGD`'s `momentum` is a free argument, so
+  "the torch default" does not imply momentum-free SGD, and nobody deploys the momentum-free
+  form. The paper's SGD-family arm is therefore `sgdm` (`online_eval.SGD_STRAT`). The
+  pre-migration momentum-free results are kept in the artifacts (`*_sgd*` fields,
+  `staleness_patchtst.json`, `leakage_check.json`, ...) so the retired readings stay
+  reproducible, but they are not what the paper reports.
+- **Per-update wall-clock is measured separately** (`frontier_timing.py`), not taken from the
+  evaluation stream: at batch 1 the update is launch-latency bound, so a single sequential
+  pass per strategy measures host contention and GPU warm-up rather than the optimizer. The
+  published estimator is a median over updates after a discarded warm-up prefix, minimised
+  over repeats that interleave every strategy, and it carries a sanity gate (Adam must never
+  measure faster than SGD+momentum at the same strategy).
 - **Tuning-fair optimizers**: each strategy's online learning rate is picked by *rehearsing*
   online adaptation on the same pre-drift validation slice (`online_eval.py:select_online_lr`),
   never on test data. `lr_fairness.py` shows that skipping this — running both optimizers at a
@@ -91,5 +104,6 @@ against the checksums of the exact files used in the paper.
 
 Code: MIT (see `LICENSE`). Datasets keep their original licenses (see the data README).
 
-Citation: to be added upon publication.
-<!-- TODO before publishing: author names in LICENSE, citation entry, paper/arXiv link. -->
+Citation: this repository accompanies a paper under review; the citation entry and the paper
+link will be added once the venue is decided. Until then, please cite the repository URL and
+the commit hash you used.

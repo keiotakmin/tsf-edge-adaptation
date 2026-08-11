@@ -34,6 +34,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 OUT = os.path.join(ROOT, "results", "tsf_edge", "lr_fairness.jsonl")
 DEFAULT_LRS = ",".join(f"{x:g}" for x in LR_GRID)   # 3.5 decades; bottom extended past the
                                                     # round-1 3e-5 edge (censoring resolved)
+# R3: plain SGD is torch.optim.SGD's literal default AND the frontier's 0-state anchor, so it
+# stays; SGD+momentum is added alongside because it, not plain SGD, is what a practitioner
+# reaches for today -- the C2 verdict has to survive the stronger baseline, not just the
+# canonical one. Adding never touches the stored sgd/adam surfaces (resume is per-optimizer).
+OPTS = ("sgd", "adam", "sgdm")
 dev = "cuda"
 
 
@@ -73,11 +78,13 @@ def main():
         for bb in backbones:
             for seed in seeds:
                 old = all_rows.get((name, bb, L, H, seed))
-                need = [lr for lr in lrs if old is None or f"{lr:g}" not in old["sgd"]]
-                if need:
+                need = {o: [lr for lr in lrs if old is None or f"{lr:g}" not in old.get(o, {})]
+                        for o in OPTS}
+                if any(need.values()):
                     todo.append((name, bb, seed, need))
     print(f"L={L} H={H}: {len(todo)} cells need work "
-          f"({sum(len(n) for *_, n in todo)} missing LR points)", flush=True)
+          f"({sum(len(v) for *_, n in todo for v in n.values())} missing (optimizer, LR) points)",
+          flush=True)
 
     data_cache = {}
     for i, (name, bb, seed, need) in enumerate(todo, 1):
@@ -96,10 +103,10 @@ def main():
         d_val = d[:n_warm]           # validation stream = the held-out pre-drift slice
         row = old if old is not None else dict(dataset=name, backbone=bb, L=L, H=H, seed=seed,
                                                warmup=wstep, static=st, val_static=wval)
-        for okind in ("sgd", "adam"):
+        for okind in OPTS:
             strat = f"full_{okind}"
             sweep = dict(row.get(okind, {}))
-            for lr in need:          # rehearse on val, then measure on test, per missing LR
+            for lr in need[okind]:   # rehearse on val, then measure on test, per missing LR
                 v = stream_eval(model, d_val, bb, n_train, L, H, strat, lr=lr,
                                 device=dev)["mse"]
                 te = stream_eval(model, d, bb, n_warm, L, H, strat, lr=lr,
@@ -118,7 +125,9 @@ def main():
         flush()
         win = "SGD" if row["sel_benefit_sgd"] >= row["sel_benefit_adam"] else "Adam"
         print(f"[{i:2d}/{len(todo)}] L{L} H{H} {name:11s} {bb:9s} s{seed} warm={wstep:5d} "
-              f"(+{len(need)} lrs) | SGD sel={row['sel_lr_sgd']:g} {row['sel_benefit_sgd']:+6.1f}% | "
+              f"(+{sum(len(v) for v in need.values())} pts) | "
+              f"SGD sel={row['sel_lr_sgd']:g} {row['sel_benefit_sgd']:+6.1f}% | "
+              f"SGD+m {row.get('sel_benefit_sgdm', float('nan')):+6.1f}% | "
               f"Adam sel={row['sel_lr_adam']:g} {row['sel_benefit_adam']:+6.1f}% "
               f"(@1e-3 {row['adam']['0.001']['benefit']:+6.1f}%) | win={win:4s} | "
               f"{time.perf_counter() - t0:5.0f}s", flush=True)

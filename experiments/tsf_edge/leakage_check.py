@@ -22,7 +22,7 @@ import json, os
 import numpy as np
 import torch
 
-from online_eval import load_csv, prep, warmup_model, stream_eval
+from online_eval import SGD_STRAT, load_csv, prep, warmup_model, stream_eval
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 COMBOS = [("ETTh2", "patchtst"), ("appliances", "patchtst"),
@@ -42,7 +42,7 @@ for name, bb in COMBOS:
     for key, stride, adapt_on, s in [("leaky", 1, "current", s1),
                                      ("delayed", 1, "trailing", s1),
                                      ("clean", H, "current", sH)]:
-        a = stream_eval(model, d, bb, n_warm, L, H, "full_sgd", device=dev,
+        a = stream_eval(model, d, bb, n_warm, L, H, SGD_STRAT, device=dev,
                         stride=stride, adapt_on=adapt_on)["mse"]
         ben = 100 * (s - a) / s
         bens[key] = ben
@@ -57,8 +57,8 @@ for name, bb in COMBOS:
     print(f"{'':11s} {'':9s} -> leak proper {row['leak_pt']:+.1f} pt | eval-set/frequency "
           f"{row['evalset_pt']:+.1f} pt | total {row['inflation_pt']:+.1f} pt\n")
 
-json.dump(dump, open(os.path.join(ROOT, "results", "tsf_edge", "leakage_check.json"), "w"), indent=2)
-print("saved", os.path.join(ROOT, "results", "tsf_edge", "leakage_check.json"))
+json.dump(dump, open(os.path.join(ROOT, "results", "tsf_edge", "leakage_check_sgdm.json"), "w"), indent=2)
+print("saved", os.path.join(ROOT, "results", "tsf_edge", "leakage_check_sgdm.json"))
 
 print("Verdict: leak_pt isolates the DSOF information leak with eval set and update count "
       "held fixed; our default stride=H protocol remains the leakage-free one.")

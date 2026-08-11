@@ -22,12 +22,25 @@ from matplotlib.lines import Line2D
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATASETS = ["appliances", "ETTm2"]
 COMBOS = [   # (backbone, strategy, label, marker, color)
-    ("patchtst", "full_sgd",  "PatchTST full·SGD",  "o", "#1f77b4"),
-    ("patchtst", "full_adam", "PatchTST full·Adam", "o", "#d62728"),
-    ("patchtst", "head_sgd",  "PatchTST head·SGD",  "s", "#1f77b4"),
-    ("patchtst", "calib_sgd", "PatchTST calib·SGD", "^", "#1f77b4"),
-    ("dlinear",  "full_sgd",  "DLinear full·SGD",   "P", "#2ca02c"),
-    ("dlinear",  "head_sgd",  "DLinear head·SGD",   "X", "#2ca02c"),
+    # R3: momentum-free SGD is no longer reported (torch.optim.SGD's momentum is a free
+    # argument and nobody deploys the 0-momentum form), so the SGD family here IS SGD+momentum
+    # and takes the family's blue. Its points remain in frontier_seeds.jsonl for reference.
+    # colour = OPTIMIZER only (paper_figs.PAL); backbone and parameter subset are carried
+    # by marker shape (PatchTST o/s/^ for full/head/calib, DLinear P/X for full/head). The
+    # previous per-backbone hues put SGD+momentum-orange next to DLinear-green, a pair that is
+    # indistinguishable under protanopia (dE 1.4, check_palette.py).
+    ("patchtst", "full_adam",  "PatchTST full·Adam",  "o", "#d62728"),
+    ("patchtst", "full_sgdm",  "PatchTST full·SGD+m", "o", "#1f77b4"),
+    ("patchtst", "head_adam",  "PatchTST head·Adam",  "s", "#d62728"),
+    ("patchtst", "calib_adam", "PatchTST calib·Adam", "^", "#d62728"),
+    ("dlinear",  "full_sgdm",  "DLinear full·SGD+m",  "P", "#1f77b4"),
+    ("dlinear",  "head_adam",  "DLinear head·Adam",   "X", "#d62728"),
+    # completes the strategy x optimizer grid: every parameter subset is now measured with
+    # all three optimizers, so no cell of the recipe is inferred rather than observed.
+    ("patchtst", "head_sgdm",  "PatchTST head·SGD+m",  "s", "#1f77b4"),
+    ("patchtst", "calib_sgdm", "PatchTST calib·SGD+m", "^", "#1f77b4"),
+    ("dlinear",  "full_adam",  "DLinear full·Adam",    "P", "#d62728"),
+    ("dlinear",  "head_sgdm",  "DLinear head·SGD+m",   "X", "#1f77b4"),
 ]
 L, H, SEED, dev = 96, 24, 0, "cuda"
 CACHE = os.path.join(ROOT, "results", "tsf_edge", "frontier_data.json")
@@ -69,6 +82,12 @@ def adapt_mem_bytes(row):
     they are not counted; this axis separates full·Adam (12 B/param) from full·SGD (4 B/param)
     at equal trainable-parameter count — the old 'trainable params' axis could not, which
     mattered once fair-LR selection made full·Adam the top-quality point."""
+    # R3: prefer the MEASURED optimizer state when the run recorded it. The label-based rule
+    # below silently mis-costs anything that is neither plain SGD nor Adam -- SGD+momentum
+    # carries one state copy (8 B/param total) but matches neither "Adam" nor a 0-state SGD,
+    # and was billed at 4 B/param until this was checked against stream_eval's measurement.
+    if row.get("opt_state_bytes") is not None:
+        return 4 * row["params"] + row["opt_state_bytes"]
     return 4 * row["params"] * (3 if "Adam" in row["label"] else 1)
 
 

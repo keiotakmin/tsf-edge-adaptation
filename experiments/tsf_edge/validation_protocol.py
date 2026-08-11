@@ -18,11 +18,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from online_eval import build_model, stream_eval, load_csv, prep
+from online_eval import SGD_STRAT, build_model, stream_eval, load_csv, prep
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MILESTONES = [50, 100, 200, 500, 1000, 2000, 4000, 8000, 20000, 50000]   # matches warmup_confound
-DATASETS = ["ETTm2", "appliances"]
+DATASETS = ["ETTm2", "appliances", "bdg2"]      # bdg2 added 2026-08-10: C1's deployable
+# protocol is the paper's headline, and it was validated on four of the six dataset x backbone
+# settings while the confound itself (warmup_confound.py) covers all six. Completing the grid
+# removes the "four of the six" disclosure rather than defending it.
 BACKBONES = ["dlinear", "patchtst"]
 SEEDS = [0, 1, 2]                                                        # matches warmup_confound
 L, H, dev, VAL_FRAC = 96, 24, "cuda", 0.2
@@ -51,18 +54,47 @@ def trajectory(data, bb, seed=0):
         if step in MILESTONES:
             vl = val_mse(model, d, n_train, n_warm)              # held-out pre-drift validation
             st = stream_eval(model, d, bb, n_warm, L, H, "static", device=dev)["mse"]
-            ad = stream_eval(model, d, bb, n_warm, L, H, "full_sgd", device=dev)["mse"]
+            ad = stream_eval(model, d, bb, n_warm, L, H, SGD_STRAT, device=dev)["mse"]
             rows.append(dict(warmup=step, val=vl, static=st, adapted=ad,
                              improve=100 * (st - ad) / st))
     return rows
 
 
+def _plot(ax, name, bb, w, st, vl, j_oracle, j_val):
+    ax.plot(w, st, "o-", color="0.35", label="static TEST MSE (oracle target)")
+    ax.axvline(MILESTONES[j_oracle], color="0.35", ls=":", lw=1.2, label="oracle sweet spot")
+    ax.set_xscale("log"); ax.set_ylabel("static TEST MSE"); ax.set_xlabel("warmup steps")
+    ax.set_title(f"{name} / {bb}"); ax.grid(alpha=0.3)
+    ax2 = ax.twinx()
+    ax2.plot(w, vl, "s--", color="#1f77b4", label="held-out VAL MSE (deployable)")
+    ax2.axvline(MILESTONES[j_val], color="#1f77b4", ls=":", lw=1.2, label="val early-stop")
+    ax2.set_ylabel("held-out validation MSE", color="#1f77b4")
+    ax2.tick_params(axis="y", labelcolor="#1f77b4")
+    h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
+    ax.legend(h1 + h2, l1 + l2, fontsize=6.5, loc="upper right")
+
+
 fig, axes = plt.subplots(len(DATASETS), len(BACKBONES), figsize=(5 * len(BACKBONES), 4 * len(DATASETS)))
 print(f"{'dataset':11s} {'backbone':9s} | {'oracle(min test)':>22s} {'val-early-stop':>20s} {'Δimprove':>9s}")
-dump = {}                                   # -> validation_protocol.json for gen_macros.py
+# Resumable per cell: each (dataset, backbone) costs ~20 min of warmup sweep, so a cell already
+# in the dump is reused rather than recomputed. Delete the file to force a full rerun.
+OUT = os.path.join(ROOT, "results", "tsf_edge")
+DUMP = os.path.join(OUT, "validation_protocol_sgdm.json")
+dump = json.load(open(DUMP)) if os.path.exists(DUMP) else {}
 for r, name in enumerate(DATASETS):
-    data = load_csv(os.path.join(ROOT, "experiments/tsf_edge/data", f"{name}.csv"))
+    data = None
     for c, bb in enumerate(BACKBONES):
+        if f"{name}|{bb}" in dump:
+            e = dump[f"{name}|{bb}"]
+            print(f"{name:11s} {bb:9s} | cached: oracle {e['oracle_step']}st  val {e['val_step']}st"
+                  f"  delta {e['delta']:+.1f}pt")
+            w = np.array(e["milestones"], float)
+            vl, st = np.array(e["val_mean"]), np.array(e["static_mean"])
+            j_oracle, j_val = MILESTONES.index(e["oracle_step"]), MILESTONES.index(e["val_step"])
+            _plot(axes[r, c], name, bb, w, st, vl, j_oracle, j_val)
+            continue
+        if data is None:
+            data = load_csv(os.path.join(ROOT, "experiments/tsf_edge/data", f"{name}.csv"))
         seed_rows = [trajectory(data, bb, seed=s) for s in SEEDS]        # 3-seed, matches warmup_confound
         w = np.array(MILESTONES, float)
         vl = np.mean([[x["val"] for x in rr] for rr in seed_rows], axis=0)
@@ -77,17 +109,8 @@ for r, name in enumerate(DATASETS):
                                     oracle_step=MILESTONES[j_oracle], val_step=MILESTONES[j_val],
                                     imp_oracle=float(imp[j_oracle]), imp_val=float(imp[j_val]),
                                     delta=float(imp[j_val] - imp[j_oracle]))
-        ax = axes[r, c]
-        ax.plot(w, st, "o-", color="0.35", label="static TEST MSE (oracle target)")
-        ax.axvline(MILESTONES[j_oracle], color="0.35", ls=":", lw=1.2, label="oracle sweet spot")
-        ax.set_xscale("log"); ax.set_ylabel("static TEST MSE"); ax.set_xlabel("warmup steps")
-        ax.set_title(f"{name} / {bb}"); ax.grid(alpha=0.3)
-        ax2 = ax.twinx()
-        ax2.plot(w, vl, "s--", color="#1f77b4", label="held-out VAL MSE (deployable)")
-        ax2.axvline(MILESTONES[j_val], color="#1f77b4", ls=":", lw=1.2, label="val early-stop")
-        ax2.set_ylabel("held-out validation MSE", color="#1f77b4"); ax2.tick_params(axis="y", labelcolor="#1f77b4")
-        h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
-        ax.legend(h1 + h2, l1 + l2, fontsize=6.5, loc="upper right")
+        json.dump(dump, open(DUMP, "w"), indent=2)          # checkpoint after every cell
+        _plot(axes[r, c], name, bb, w, st, vl, j_oracle, j_val)
 
 fig.suptitle("Deployable fair protocol: does held-out (pre-drift) validation early-stopping pick the "
              "same warmup as the oracle (min static TEST error)?", fontsize=10)
@@ -95,7 +118,7 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 out = os.path.join(ROOT, "results", "tsf_edge")
 for ext in ("png", "pdf"):
     fig.savefig(os.path.join(out, f"validation_protocol.{ext}"), dpi=150, bbox_inches="tight")
-json.dump(dump, open(os.path.join(out, "validation_protocol.json"), "w"), indent=2)
+json.dump(dump, open(os.path.join(out, "validation_protocol_sgdm.json"), "w"), indent=2)
 print("\nsaved", os.path.join(out, "validation_protocol.png"))
 print("Read: if val-early-stop improvement ≈ oracle improvement (small Δ), pre-drift validation is a "
       "sound deployable stand-in for the fair sweet spot; a large Δ means drift breaks it (a finding).")

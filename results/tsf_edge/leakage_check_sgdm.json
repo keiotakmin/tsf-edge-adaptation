@@ -1,0 +1,58 @@
+{
+  "ETTh2|patchtst": {
+    "leaky_static": 0.16296906395052738,
+    "leaky_adapted": 0.12346400902630669,
+    "leaky_benefit": 24.240830723684624,
+    "delayed_static": 0.16296906395052738,
+    "delayed_adapted": 0.188369177908599,
+    "delayed_benefit": -15.585850064023411,
+    "clean_static": 0.15876228868632028,
+    "clean_adapted": 0.16147025063819154,
+    "clean_benefit": -1.7056707699783797,
+    "leak_pt": 39.826680787708035,
+    "evalset_pt": -13.880179294045032,
+    "inflation_pt": 25.946501493663003
+  },
+  "appliances|patchtst": {
+    "leaky_static": 0.488393481016545,
+    "leaky_adapted": 0.17864693844300228,
+    "leaky_benefit": 63.42151453963606,
+    "delayed_static": 0.488393481016545,
+    "delayed_adapted": 0.24142416523889637,
+    "delayed_benefit": 50.567692931446445,
+    "clean_static": 0.4695688482383017,
+    "clean_adapted": 0.1951897368333563,
+    "clean_benefit": 58.43213672166358,
+    "leak_pt": 12.853821608189612,
+    "evalset_pt": -7.864443790217138,
+    "inflation_pt": 4.989377817972475
+  },
+  "ETTh2|dlinear": {
+    "leaky_static": 0.146000646657258,
+    "leaky_adapted": 0.1371042423831095,
+    "leaky_benefit": 6.0934005963912945,
+    "delayed_static": 0.146000646657258,
+    "delayed_adapted": 0.1772894678161164,
+    "delayed_benefit": -21.43060450431434,
+    "clean_static": 0.1413243425114708,
+    "clean_adapted": 0.13859706027793456,
+    "clean_benefit": 1.9298035887305682,
+    "leak_pt": 27.524005100705633,
+    "evalset_pt": -23.360408093044907,
+    "inflation_pt": 4.1635970076607265
+  },
+  "appliances|dlinear": {
+    "leaky_static": 0.23727722782840305,
+    "leaky_adapted": 0.22066118728545428,
+    "leaky_benefit": 7.002796136410255,
+    "delayed_static": 0.23727722782840305,
+    "delayed_adapted": 0.24743270581941001,
+    "delayed_benefit": -4.280005327081504,
+    "clean_static": 0.2220876896776567,
+    "clean_adapted": 0.21224093510159756,
+    "clean_benefit": 4.433723719829302,
+    "leak_pt": 11.282801463491758,
+    "evalset_pt": -8.713729046910807,
+    "inflation_pt": 2.569072416580953
+  }
+}

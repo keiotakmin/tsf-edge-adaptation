@@ -20,16 +20,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from online_eval import VAL_FRAC, build_model, load_csv, prep, stream_eval
+from online_eval import SGD_STRAT, VAL_FRAC, build_model, load_csv, prep, stream_eval
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MILESTONES = [50, 100, 200, 500, 1000, 2000, 4000, 8000, 20000, 50000]
 DATASETS = ["ETTm2", "appliances"]
-STRATS = [("full_sgd", 1e-3), ("full_adam", 1e-4), ("head_sgd", 1e-3), ("calib_sgd", 1e-3)]
+STRATS = [("full_sgdm", 1e-3), ("full_adam", 1e-4), ("head_sgdm", 1e-3),
+          ("calib_sgdm", 1e-3)]
 SEEDS = [0, 1, 2]
 BB, L, H, dev = "patchtst", 96, 24, "cuda"
-COLORS = {"full_sgd": "#1f77b4", "full_adam": "#d62728",
-          "head_sgd": "#2ca02c", "calib_sgd": "#9467bd"}
+COLORS = {"full_sgdm": "#1f77b4", "full_adam": "#d62728",
+          "head_sgdm": "#1f77b4", "calib_sgdm": "#1f77b4"}
+assert set(COLORS) == {s for s, _ in STRATS}, "COLORS must track STRATS"
 
 
 def trajectory(data, seed):
@@ -92,5 +94,5 @@ fig.tight_layout(rect=(0, 0, 1, 0.93))
 out = os.path.join(ROOT, "results", "tsf_edge")
 for ext in ("png", "pdf"):
     fig.savefig(os.path.join(out, f"m6_strategies.{ext}"), dpi=150, bbox_inches="tight")
-json.dump(dump, open(os.path.join(out, "m6_strategies.json"), "w"), indent=2)
+json.dump(dump, open(os.path.join(out, "m6_strategies_sgdm.json"), "w"), indent=2)
 print("\nsaved", os.path.join(out, "m6_strategies.png"), "and m6_strategies.json")

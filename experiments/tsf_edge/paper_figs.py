@@ -4,7 +4,7 @@ full-text width (figure* = 7.1 in), fonts sized for print, and NO matplotlib sup
 LaTeX captions carry the message; suptitles would duplicate them).
 
 Sources: warmup_confound.json / validation_protocol.json / frontier_data.json /
-staleness_patchtst.json / grid.jsonl.  Outputs: results/tsf_edge/<name>_paper.{pdf,png}.
+staleness_patchtst_full_sgdm.json / grid.jsonl.  Outputs: results/tsf_edge/<name>_paper.{pdf,png}.
 Run via ieee_big_data/sync_assets.sh (which also regenerates macros and copies assets)."""
 from __future__ import annotations
 import json, os
@@ -39,21 +39,52 @@ def save(fig, name):
     print("wrote", os.path.join(RES, f"{name}.pdf"))
 
 
+# ---------------------------------------------------------------------------------------
+# ONE palette, one meaning per colour, shared by every figure (R3: colour previously meant
+# three different things across Figs. 1-5 -- blue was "adapted model", "validation MSE",
+# "full-SGD" and "periodic" in turn, which is exactly the inconsistency a reader carries
+# between figures). The rule now: the three reserved hues encode the OPTIMIZER and nothing
+# else; anything that is not an optimizer takes a role colour outside them; backbone and
+# parameter-subset are carried by marker SHAPE, not by hue.
+# Validated with check_palette.py (OKLab dE under normal/deuter/protan/tritanopia): every
+# co-occurring set PASSes, except static-grey vs Adam-red at protanopia (dE 6.7), which is
+# legal because the static reference is always a DOTTED rule against solid marker curves.
+# WHEN YOU CHANGE A HUE HERE, also grep ieee_big_data/main.tex for the colour words in the
+# figure captions ("blue", "green", ...): captions name colours in prose, so nothing in the
+# macro pipeline catches a caption left describing the previous palette. This has bitten
+# three captions already (Figs. 1, 2 and 4).
+PAL = {
+    "sgd":      "#1f77b4",   # reserved: optimizer identity
+    "adam":     "#d62728",
+    "sgdm":     "#ff7f0e",
+    "sgd_alt":  "#9ecae1",   # same optimizer, second series in one panel (Fig. 5 schedules):
+    "adam_alt": "#fc9272",   # same hue, lighter, so "blue = SGD" still reads
+    "static":   "0.35",      # the no-adaptation reference (never a series identity)
+    "derived":  "#2ca02c",   # a derived diagnostic on a secondary axis (improvement %, val MSE).
+                             # Green, not the former dark purple: at OKLab L 62 vs 46 it reads
+                             # as a light accent against the grey/blue series while still
+                             # clearing 3:1 on white, and it lifts the worst CVD pair in Fig. 1
+                             # (vs. the blue adapted curve) from dE 8 to 15.
+    "pick":     "0.15",      # a selected/oracle budget, drawn as a rule rather than a series
+}
+
+
 def warmup_confound_paper():
     """C1a, 2 rows (backbones) x 3 cols (datasets) landscape; static +/- std, adapted,
     benefit on the right axis (red), sweet-spot vline."""
     wc = load("warmup_confound.json")
     datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
-    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.9))
+    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.35))
     for r, bb in enumerate(backbones):
         for c, ds in enumerate(datasets):
             d, ax = wc[f"{ds}|{bb}"], axes[r, c]
             m = d["milestones"]
             sm, ss = np.array(d["static_mean"]), np.array(d["static_std"])
-            ax.plot(m, sm, "o-", color="0.35", label="static (no adapt)")
-            ax.fill_between(m, sm - ss, sm + ss, color="0.35", alpha=0.15)
-            ax.plot(m, d["adapted_mean"], "s-", color="#1f77b4", label="adapted (full-SGD)")
-            ax.axvline(d["sweet_step"], color="green", ls=":", lw=1.1, label="sweet spot")
+            ax.plot(m, sm, "o-", color=PAL["static"], label="static (no adapt)")
+            ax.fill_between(m, sm - ss, sm + ss, color=PAL["static"], alpha=0.15)
+            ax.plot(m, d["adapted_mean"], "s-", color=PAL["sgd"],
+                    label="adapted (full-SGD+m)")
+            ax.axvline(d["sweet_step"], color=PAL["pick"], ls=":", lw=1.1, label="sweet spot")
             ax.set_xscale("log"); ax.grid(alpha=0.3)
             ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
             if c == 0:
@@ -63,13 +94,13 @@ def warmup_confound_paper():
             ax2 = ax.twinx()
             # paper-wide positive-good sign convention (minor 1): improvement = -benefit
             im, ist = -np.array(d["benefit_mean"]), np.array(d["benefit_std"])
-            ax2.plot(m, im, "^--", color="#d62728", lw=1.0, ms=2.5)
-            ax2.fill_between(m, im - ist, im + ist, color="#d62728", alpha=0.12)
-            ax2.tick_params(axis="y", labelcolor="#d62728", labelsize=6)
+            ax2.plot(m, im, "^--", color=PAL["derived"], lw=1.0, ms=2.5)
+            ax2.fill_between(m, im - ist, im + ist, color=PAL["derived"], alpha=0.12)
+            ax2.tick_params(axis="y", labelcolor=PAL["derived"], labelsize=6)
             if c == len(datasets) - 1:
-                ax2.set_ylabel("adaptation improvement %", color="#d62728")
+                ax2.set_ylabel("adaptation improvement %", color=PAL["derived"])
     handles, _ = axes[0, 0].get_legend_handles_labels()
-    handles.append(Line2D([], [], color="#d62728", ls="--", marker="^", ms=2.5,
+    handles.append(Line2D([], [], color=PAL["derived"], ls="--", marker="^", ms=2.5,
                           label="improvement % (right axis, higher = larger apparent benefit)"))
     fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.05),
                frameon=False)
@@ -78,52 +109,74 @@ def warmup_confound_paper():
 
 
 def validation_protocol_paper():
-    """C1c, 1x4 landscape: static TEST MSE (left) vs held-out pre-drift VAL MSE (right,
-    rescaled -- only its argmin matters), with the oracle and validation picks as vlines."""
-    vp = load("validation_protocol.json")
-    order = ["ETTm2|dlinear", "ETTm2|patchtst", "appliances|dlinear", "appliances|patchtst"]
-    fig, axes = plt.subplots(1, 4, figsize=(TEXTWIDTH, 1.9))
-    for ax, key in zip(axes, order):
-        d = vp[key]
-        ds, bb = key.split("|")
-        m = d["milestones"]
-        ax.plot(m, d["static_mean"], "o-", color="0.35")
-        ax.axvline(d["oracle_step"], color="0.35", ls=":", lw=1.2)
-        ax.set_xscale("log"); ax.grid(alpha=0.3)
-        ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
-        ax.set_xlabel("warmup steps")
-        ax2 = ax.twinx()
-        ax2.plot(m, d["val_mean"], "s--", color="#1f77b4")
-        ax2.axvline(d["val_step"], color="#1f77b4", ls="--", lw=1.0)
-        ax2.set_yticks([])                       # scale irrelevant: only the argmin matters
-    axes[0].set_ylabel("static TEST MSE")
-    handles = [Line2D([], [], marker="o", color="0.35", label="static TEST MSE (left)"),
-               Line2D([], [], ls=":", color="0.35", lw=1.2, label="oracle sweet spot"),
-               Line2D([], [], marker="s", ls="--", color="#1f77b4",
+    """C1c: static TEST MSE (left) vs held-out pre-drift VAL MSE (right, rescaled -- only its
+    argmin matters), with the oracle and validation picks as vlines. Laid out on the SAME grid
+    as Fig. 1 (rows = backbones, cols = datasets) so the two figures can be read panel against
+    panel; a panel is left blank if that cell has not been computed. Source is the sgdm dump,
+    the one gen_macros reads -- the two must not diverge (the file this used to read was the
+    pre-migration plain-SGD run)."""
+    vp = load("validation_protocol_sgdm.json")
+    datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
+    # Same panel grid AND same height as Fig. 1 (2 rows -> 3.35 in), so the two figures can be
+    # read panel against panel without a size change implying a difference in weight.
+    fig, axes = plt.subplots(len(backbones), len(datasets),
+                             figsize=(TEXTWIDTH, 1.675 * len(backbones)), squeeze=False)
+    for r, bb in enumerate(backbones):
+        for c, ds in enumerate(datasets):
+            ax = axes[r][c]
+            d = vp.get(f"{ds}|{bb}")
+            if d is None:
+                ax.axis("off")
+                continue
+            m = d["milestones"]
+            ax.plot(m, d["static_mean"], "o-", color=PAL["static"])
+            ax.axvline(d["oracle_step"], color=PAL["pick"], ls=":", lw=1.2)
+            ax.set_xscale("log"); ax.grid(alpha=0.3)
+            ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
+            if r == len(backbones) - 1:
+                ax.set_xlabel("warmup steps")
+            if c == 0:
+                ax.set_ylabel("static TEST MSE")
+            ax2 = ax.twinx()
+            ax2.plot(m, d["val_mean"], "s--", color=PAL["derived"])
+            ax2.axvline(d["val_step"], color=PAL["derived"], ls="--", lw=1.0)
+            ax2.set_yticks([])                   # scale irrelevant: only the argmin matters
+    handles = [Line2D([], [], marker="o", color=PAL["static"], label="static TEST MSE (left)"),
+               Line2D([], [], ls=":", color=PAL["pick"], lw=1.2, label="oracle sweet spot"),
+               Line2D([], [], marker="s", ls="--", color=PAL["derived"],
                       label="held-out pre-drift VAL MSE (right, rescaled)"),
-               Line2D([], [], ls="--", color="#1f77b4", lw=1.0, label="validation early-stop pick")]
-    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.13),
-               frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
+               Line2D([], [], ls="--", color=PAL["derived"], lw=1.0, label="validation early-stop pick")]
+    fig.legend(handles=handles, ncol=4, loc="upper center",
+               bbox_to_anchor=(0.5, 1.13 if len(backbones) == 1 else 1.06), frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     save(fig, "validation_protocol_paper")
 
 
 def frontier_paper():
     """C3, 2x2 (datasets x {memory, compute}), FIVE SEEDS (frontier_seeds.jsonl; R2):
     mean +/- std error bars per strategy point. Memory axis = adaptation memory (gradients +
-    optimizer state), which separates full-Adam (12 B/param) from full-SGD (4 B/param) at
+    optimizer state), which separates full-Adam (12 B/param) from full-SGD+m (8 B/param) at
     equal trainable-parameter count. calib is drawn as an OPEN marker on top of head (their
-    adaptation memory is nearly identical, so filled markers would occlude each other)."""
+    adaptation memory is nearly identical, so filled markers would occlude each other).
+    NOTE: opt_state_bytes MUST be carried into the per-point dict -- adapt_mem_bytes falls
+    back to a label rule that bills anything without "Adam" in its name at 0 state, i.e. it
+    silently plots SGD+momentum at plain-SGD memory (half its true footprint, and half of
+    what gen_macros emits for the same point, which does pass the measured field)."""
     from frontier import COMBOS, DATASETS, adapt_mem_bytes, pareto
+    from frontier_timing import load_timing
+    timing = load_timing()          # controlled per-update wall-clock; see frontier_timing.py
     seeds = [json.loads(l) for l in open(os.path.join(RES, "frontier_seeds.jsonl"))]
     style = {lab: (mk, col) for _, _, lab, mk, col in COMBOS}
-    fig, axes = plt.subplots(2, 2, figsize=(TEXTWIDTH, 5.2))
+    # 2x2 at text width gives panels about 1.5x wider than tall; the extra height keeps the
+    # log-memory axis from squashing the Pareto staircase into a flat band.
+    fig, axes = plt.subplots(2, 2, figsize=(TEXTWIDTH, 5.0))
     for r, name in enumerate(DATASETS):
         rows = []
         for _, _, lab, mk, col in COMBOS:
             rs = [x for x in seeds if x["dataset"] == name and x["label"] == lab]
             rows.append(dict(label=lab, params=rs[0]["params"],
-                             ms=float(np.mean([x["ms"] for x in rs])),
+                             opt_state_bytes=rs[0].get("opt_state_bytes"),
+                             ms=timing.get((name, lab), float(np.mean([x["ms"] for x in rs]))),
                              benefit=float(np.mean([x["benefit"] for x in rs])),
                              std=float(np.std([x["benefit"] for x in rs]))))
         for c, (xget, xlab, xname) in enumerate(
@@ -152,21 +205,36 @@ def frontier_paper():
             ax.axhline(0, color="0.7", ls=":", lw=0.8)
             ax.set_xlabel(xlab)
             if c == 0:
-                ax.set_ylabel("adaptation benefit % ($\\uparrow$ better)")
+                ax.set_ylabel("adaptation benefit %")
             ax.set_title(f"{PRETTY.get(name, name)}: quality vs {xname}")
             ax.grid(alpha=0.3)
-        if name == "appliances":                       # the S IV-B rehearsal failure realized
-            axes[r, 0].annotate("rehearsed picks beyond SGD's\nplateau fail under drift "
-                                "(§IV-B)", xy=(3.0e4, -22), fontsize=5.8, color="0.25")
-    handles = [Line2D([0], [0], marker=mk, color="w",
-                      markerfacecolor="none" if "calib" in lab else col,
-                      markeredgecolor=col if "calib" in lab else "k",
-                      markersize=6, label=lab)
-               for _, _, lab, mk, col in COMBOS]
-    handles.append(Line2D([0], [0], ls="--", color="0.5", label="Pareto frontier (memory)"))
-    fig.legend(handles=handles, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.045),
-               frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    # Legend layout: matplotlib fills a multi-column legend COLUMN-major (11 entries over
+    # ncol=4 => columns of 3/3/3/2), so the entries are handed over in COLUMN order. The
+    # result is a grid: each column is one backbone x optimizer group, each ROW one parameter
+    # subset (full / head / calib). Previously the list was simply COMBOS order, which put the
+    # four later-added points at the end and scattered the pairs across the block. COMBOS
+    # (= plotting order) is deliberately left alone; only the legend is reordered.
+    LEGEND_ORDER = [                                          # None = the Pareto entry, which
+        "PatchTST full·SGD+m", "PatchTST head·SGD+m", "PatchTST calib·SGD+m",
+        "PatchTST full·Adam",  "PatchTST head·Adam",  "PatchTST calib·Adam",
+        "DLinear full·SGD+m",  "DLinear head·SGD+m",  None,   # pads the short DLinear column
+        "DLinear full·Adam",   "DLinear head·Adam",           # so the rows stay aligned
+    ]
+    assert set(LEGEND_ORDER) - {None} == set(style), "LEGEND_ORDER must cover every COMBOS label"
+    handles = []
+    for lab in LEGEND_ORDER:
+        if lab is None:
+            handles.append(Line2D([0], [0], ls="--", color="0.5",
+                                  label="Pareto frontier (memory)"))
+            continue
+        mk, col = style[lab]
+        handles.append(Line2D([0], [0], marker=mk, color="w",
+                              markerfacecolor="none" if "calib" in lab else col,
+                              markeredgecolor=col if "calib" in lab else "k",
+                              markersize=6, label=lab))
+    fig.legend(handles=handles, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.038),
+               frameon=False, fontsize=6.4, handletextpad=0.4, columnspacing=1.2)
+    fig.tight_layout(rect=(0, 0, 1, 0.935))
     save(fig, "frontier_paper")
 
 
@@ -174,19 +242,21 @@ def staleness_paper():
     """Staleness, 2x3 ({full-SGD, full-Adam} x datasets), fair warmup + rehearsed LR:
     online MSE vs update fraction, periodic vs drift-triggered. Two optimizer rows because
     the drift-vs-periodic sign is small and optimizer-dependent (the demoted claim)."""
-    variants = [("full-SGD", load("staleness_patchtst.json"))]
+    variants = [("full-SGD+m", load("staleness_patchtst_full_sgdm.json"))]
     adam_p = os.path.join(RES, "staleness_patchtst_full_adam.json")
     if os.path.exists(adam_p):
         variants.append(("full-Adam", json.load(open(adam_p))))
     names = ["ETTh2", "ETTm2", "appliances"]
-    fig, axes = plt.subplots(len(variants), 3, figsize=(TEXTWIDTH, 1.9 * len(variants)),
+    fig, axes = plt.subplots(len(variants), 3, figsize=(TEXTWIDTH, 1.56 * len(variants)),
                              squeeze=False)
     for r, (vlab, st) in enumerate(variants):
         for c, name in enumerate(names):
             ax, d = axes[r][c], st[name]
-            ax.axhline(d["static"], color="0.6", ls=":", lw=0.9, label="static (no adapt)")
-            for key, col, lab, mk in (("periodic", "#1f77b4", "periodic every-$k$", "o"),
-                                      ("drift", "#d62728", "drift-triggered", "s")):
+            ax.axhline(d["static"], color=PAL["static"], ls=":", lw=0.9,
+                       label="static (no adapt)")
+            base = "sgd" if "SGD" in vlab else "adam"
+            for key, col, lab, mk in (("periodic", PAL[base], "periodic every-$k$", "o"),
+                                      ("drift", PAL[base + "_alt"], "drift-triggered", "s")):
                 pts = sorted(d[key])
                 u = [p[0] for p in pts]
                 m = np.array([p[1] for p in pts])
@@ -218,22 +288,23 @@ def regime_paper():
     rows = [r for r in rows if r["dataset"] in core]
     n = len(rows)
     lrs = sorted(rows[0]["lrs"])
-    COLS = {"sgd": "#1f77b4", "adam": "#d62728"}
-    LABS = {"sgd": "full-SGD", "adam": "full-Adam"}
+    # R3: the SGD-family arm is SGD+momentum; momentum-free SGD is no longer reported.
+    COLS = {"sgdm": PAL["sgd"], "adam": PAL["adam"]}
+    LABS = {"sgdm": "full-SGD+m", "adam": "full-Adam"}
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.8))
-    for o in ("sgd", "adam"):
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.55))
+    for o in ("sgdm", "adam"):
         M = np.array([[r[o][f"{lr:g}"]["benefit"] for lr in lrs] for r in rows])
         M[~np.isfinite(M)] = -1e9          # diverged stream (nan/-inf) = very negative; the
         med, (q1, q3) = np.median(M, axis=0), np.percentile(M, [25, 75], axis=0)  # curve just
         # leaves the axis (ylim floor) at those rates, and the counts row still includes them
         axA.plot(lrs, med, "o-", color=COLS[o], label=f"{LABS[o]} (median)", zorder=3)
         axA.fill_between(lrs, q1, q3, color=COLS[o], alpha=0.15)
-        for x, n in zip(lrs, (M < 0).sum(axis=0)):     # negative-cell counts along the curve
-            if n:
-                axA.annotate(f"{n}", (x, -64), color=COLS[o], fontsize=5.5, ha="center",
-                             va="bottom" if o == "sgd" else "top",
-                             xytext=(0, 1.5 if o == "sgd" else -1.5),
+        for x, ncur in zip(lrs, (M < 0).sum(axis=0)):  # negative-cell counts along the curve
+            if ncur:
+                axA.annotate(f"{ncur}", (x, -64), color=COLS[o], fontsize=5.5, ha="center",
+                             va="bottom" if o == "sgdm" else "top",
+                             xytext=(0, 1.5 if o == "sgdm" else -1.5),
                              textcoords="offset points")
     axA.text(lrs[0], -64, "cells $<$ static:", fontsize=5.5, color="0.3", va="center")
     axA.axhline(0, color="0.4", lw=0.8)
@@ -250,7 +321,7 @@ def regime_paper():
     lo, hi, y_floor = -50, 62, -42        # sel benefits below y_floor (incl. the diverged
     for r in rows:                        # rehearsed-SGD picks) are clipped to the bottom edge
         mk = "o" if r["L"] == 96 else "^"
-        for o in ("sgd", "adam"):
+        for o in ("sgdm", "adam"):
             y = r[f"sel_benefit_{o}"]
             y = y_floor if not (y >= y_floor) else y
             axB.scatter(r[o]["0.001"]["benefit"], y, marker=mk, s=13,
@@ -259,10 +330,10 @@ def regime_paper():
     axB.axhline(0, color="0.4", lw=0.8); axB.axvline(0, color="0.4", lw=0.8)
     n_ad_fix = sum(r["adam"]["0.001"]["benefit"] < 0 for r in rows)
     n_ad_sel = sum(r["sel_benefit_adam"] < 0 for r in rows)
-    n_sg_fix = sum(r["sgd"]["0.001"]["benefit"] < 0 for r in rows)
-    n_sg_sel = sum(r["sel_benefit_sgd"] < 0 for r in rows)
+    n_sg_fix = sum(r["sgdm"]["0.001"]["benefit"] < 0 for r in rows)
+    n_sg_sel = sum(r["sel_benefit_sgdm"] < 0 for r in rows)
     axB.text(0.03, 0.97, f"negative cells @default $\\to$ @rehearsed:\n"
-             f"Adam {n_ad_fix}/{n} $\\to$ {n_ad_sel}/{n};  SGD {n_sg_fix}/{n} $\\to$ {n_sg_sel}/{n}",
+             f"Adam {n_ad_fix}/{n} $\\to$ {n_ad_sel}/{n};  SGD+m {n_sg_fix}/{n} $\\to$ {n_sg_sel}/{n}",
              transform=axB.transAxes, ha="left", va="top", fontsize=6,
              bbox=dict(facecolor="white", alpha=0.9, edgecolor="0.7", lw=0.5))
     axB.set_xlim(lo, hi); axB.set_ylim(y_floor - 3, hi)
@@ -270,8 +341,8 @@ def regime_paper():
     axB.set_ylabel("benefit % at rehearsed LR")
     axB.set_title("(B) rehearsal rescues Adam; can sink SGD (bottom edge)")
     axB.legend(handles=[
-        Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgd"], markersize=4.5,
-               label="full-SGD"),
+        Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgdm"], markersize=4.5,
+               label="full-SGD+m"),
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["adam"], markersize=4.5,
                label="full-Adam"),
         Line2D([], [], marker="o", color="w", markerfacecolor="0.5", markersize=4, label="L=96"),
@@ -300,7 +371,7 @@ def m6_strategies_paper():
         m = d["milestones"]
         sm, ss = np.array(d["static_mean"]), np.array(d["static_std"])
         ax.plot(m, sm, "o-", color="0.35")
-        ax.fill_between(m, sm - ss, sm + ss, color="0.35", alpha=0.15)
+        ax.fill_between(m, sm - ss, sm + ss, color=PAL["static"], alpha=0.15)
         ax.axvline(d["sweet_step"], color="green", ls=":", lw=1.1)
         ax.set_xscale("log"); ax.grid(alpha=0.3)
         ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
