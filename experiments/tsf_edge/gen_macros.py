@@ -156,7 +156,9 @@ def _mean_gap(cfgs):                        # per-config mean |SGD-Adam| margin,
 if flip and uni:
     emit("GridFlipMeanGapPt", f1(_mean_gap(flip)))
     emit("GridUnanimousMeanGapPt", f1(_mean_gap(uni)))
-emit("GridWarmCapStep", ki(max(WARM_GRID)))
+emit("GridWarmGridLo", ki(min(WARM_GRID)))            # deployment grid: the per-cell
+emit("GridWarmCapStep", ki(max(WARM_GRID)))           # selection grid used by every cell
+emit("GridWarmGridCount", len(WARM_GRID))
 emit("GridWarmCapCells", sum(r["warmup"] == max(WARM_GRID) for r in rows))
 
 for probe, fmt in [("p3_drift", f2), ("p2_gradcos", f2), ("p1_noise", f3)]:
@@ -509,6 +511,11 @@ if wc:
     section("C1a warmup confound (warmup_confound_sgdm.json); values NEGATED to the paper-wide "
             "positive-good convention (improvement% >0 = adaptation better; minor 1). "
             "InflPt = improvement minus sweet-spot improvement (>0 = benefit INFLATED)")
+    _ms = next(iter(wc.values()))["milestones"]            # C1 STUDY grid (wider than WARM_GRID)
+    assert all(r["milestones"] == _ms for r in wc.values()), "C1 panels disagree on milestones"
+    emit("WcMilestoneLo", ki(min(_ms)))
+    emit("WcMilestoneHi", ki(max(_ms)))
+    emit("WcMilestoneCount", len(_ms))
     n_under_infl = n_over_infl = 0
     u_infls, o_infls = [], []
     for key, r in wc.items():

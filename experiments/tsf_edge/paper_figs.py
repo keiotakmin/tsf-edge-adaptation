@@ -66,25 +66,46 @@ PAL = {
                              # clearing 3:1 on white, and it lifts the worst CVD pair in Fig. 1
                              # (vs. the blue adapted curve) from dE 8 to 15.
     "pick":     "0.15",      # a selected/oracle budget, drawn as a rule rather than a series
+    "val":      "#e7298a",   # the held-out pre-drift VALIDATION diagnostic (curve + its pick) in
+                             # the merged Fig. 1. Purple (#7570b3) was tried first and FAILS
+                             # check_palette -- dE 0.2 against the blue adapted curve under
+                             # protanopia. This magenta PASSes normal/deuteranopia and is WARN
+                             # (dE 8.0 vs static grey) under protanopia, where the dash pattern
+                             # and diamond markers carry the difference. It is NOT an optimizer
+                             # hue: no Adam series appears in this figure.
 }
 
 
-def warmup_confound_paper():
-    """C1a, 2 rows (backbones) x 3 cols (datasets) landscape; static +/- std, adapted,
-    benefit on the right axis (red), sweet-spot vline."""
-    wc = load("warmup_confound.json")
+def warmup_paper():
+    """C1a and C1c in ONE 2x3 grid (rows = backbones, cols = datasets), which is legitimate
+    because both studies read the same milestone grid and the same static-test curve (verified
+    identical between the two dumps). Per panel: static +/- std and adapted on the left axis,
+    adaptation benefit % on the right, the held-out pre-drift validation curve rescaled onto the
+    left axis (only its argmin matters), and the two picks as rules.
+    Source is warmup_confound_SGDM -- the file gen_macros reads. Until 2026-08-12 this figure
+    read warmup_confound.json, the pre-migration momentum-free run, so every benefit curve
+    disagreed with Table I (e.g. Appliances/DLinear under-warming +13.5% drawn against +33.4%
+    tabulated). Both dumps are kept; only the *_sgdm one is the paper's."""
+    wc, vp = load("warmup_confound_sgdm.json"), load("validation_protocol_sgdm.json")
     datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
-    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.35))
+    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.6))
     for r, bb in enumerate(backbones):
         for c, ds in enumerate(datasets):
-            d, ax = wc[f"{ds}|{bb}"], axes[r, c]
+            d, v, ax = wc[f"{ds}|{bb}"], vp[f"{ds}|{bb}"], axes[r, c]
             m = d["milestones"]
             sm, ss = np.array(d["static_mean"]), np.array(d["static_std"])
-            ax.plot(m, sm, "o-", color=PAL["static"], label="static (no adapt)")
+            ax.plot(m, sm, "o-", color=PAL["static"], label="static (no adapt)", zorder=3)
             ax.fill_between(m, sm - ss, sm + ss, color=PAL["static"], alpha=0.15)
-            ax.plot(m, d["adapted_mean"], "s-", color=PAL["sgd"],
-                    label="adapted (full-SGD+m)")
-            ax.axvline(d["sweet_step"], color=PAL["pick"], ls=":", lw=1.1, label="sweet spot")
+            ax.plot(m, d["adapted_mean"], "s-", color=PAL["sgd"], zorder=4,
+                    label="adapted (full·SGD+m)")
+            vm = np.array(v["val_mean"])                 # affine rescale onto the static range
+            ax.plot(m, sm.min() + (vm - vm.min()) * (sm.max() - sm.min()) / np.ptp(vm),
+                    "d--", color=PAL["val"], lw=0.9, ms=2.4, zorder=2,
+                    label="held-out pre-drift VAL MSE (rescaled)")
+            ax.axvline(v["oracle_step"], color=PAL["pick"], ls=":", lw=1.1, zorder=1,
+                       label="oracle sweet spot")
+            ax.axvline(v["val_step"], color=PAL["val"], ls="--", lw=1.1, zorder=1,
+                       label="validation early-stop pick")
             ax.set_xscale("log"); ax.grid(alpha=0.3)
             ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
             if c == 0:
@@ -94,62 +115,18 @@ def warmup_confound_paper():
             ax2 = ax.twinx()
             # paper-wide positive-good sign convention (minor 1): reported benefit = -(file benefit)
             im, ist = -np.array(d["benefit_mean"]), np.array(d["benefit_std"])
-            ax2.plot(m, im, "^--", color=PAL["derived"], lw=1.0, ms=2.5)
+            ax2.plot(m, im, "^--", color=PAL["derived"], lw=1.0, ms=2.5, zorder=2)
             ax2.fill_between(m, im - ist, im + ist, color=PAL["derived"], alpha=0.12)
             ax2.tick_params(axis="y", labelcolor=PAL["derived"], labelsize=6)
             if c == len(datasets) - 1:
                 ax2.set_ylabel("adaptation benefit %", color=PAL["derived"])
     handles, _ = axes[0, 0].get_legend_handles_labels()
     handles.append(Line2D([], [], color=PAL["derived"], ls="--", marker="^", ms=2.5,
-                          label="benefit % (right axis, higher = larger apparent benefit)"))
-    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.05),
+                          label="benefit % (right axis)"))
+    fig.legend(handles=handles, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.10),
                frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
-    save(fig, "warmup_confound_paper")
-
-
-def validation_protocol_paper():
-    """C1c: static TEST MSE (left) vs held-out pre-drift VAL MSE (right, rescaled -- only its
-    argmin matters), with the oracle and validation picks as vlines. Laid out on the SAME grid
-    as Fig. 1 (rows = backbones, cols = datasets) so the two figures can be read panel against
-    panel; a panel is left blank if that cell has not been computed. Source is the sgdm dump,
-    the one gen_macros reads -- the two must not diverge (the file this used to read was the
-    pre-migration plain-SGD run)."""
-    vp = load("validation_protocol_sgdm.json")
-    datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
-    # Same panel grid AND same height as Fig. 1 (2 rows -> 3.35 in), so the two figures can be
-    # read panel against panel without a size change implying a difference in weight.
-    fig, axes = plt.subplots(len(backbones), len(datasets),
-                             figsize=(TEXTWIDTH, 1.675 * len(backbones)), squeeze=False)
-    for r, bb in enumerate(backbones):
-        for c, ds in enumerate(datasets):
-            ax = axes[r][c]
-            d = vp.get(f"{ds}|{bb}")
-            if d is None:
-                ax.axis("off")
-                continue
-            m = d["milestones"]
-            ax.plot(m, d["static_mean"], "o-", color=PAL["static"])
-            ax.axvline(d["oracle_step"], color=PAL["pick"], ls=":", lw=1.2)
-            ax.set_xscale("log"); ax.grid(alpha=0.3)
-            ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
-            if r == len(backbones) - 1:
-                ax.set_xlabel("warmup steps")
-            if c == 0:
-                ax.set_ylabel("static TEST MSE")
-            ax2 = ax.twinx()
-            ax2.plot(m, d["val_mean"], "s--", color=PAL["derived"])
-            ax2.axvline(d["val_step"], color=PAL["derived"], ls="--", lw=1.0)
-            ax2.set_yticks([])                   # scale irrelevant: only the argmin matters
-    handles = [Line2D([], [], marker="o", color=PAL["static"], label="static TEST MSE (left)"),
-               Line2D([], [], ls=":", color=PAL["pick"], lw=1.2, label="oracle sweet spot"),
-               Line2D([], [], marker="s", ls="--", color=PAL["derived"],
-                      label="held-out pre-drift VAL MSE (right, rescaled)"),
-               Line2D([], [], ls="--", color=PAL["derived"], lw=1.0, label="validation early-stop pick")]
-    fig.legend(handles=handles, ncol=4, loc="upper center",
-               bbox_to_anchor=(0.5, 1.13 if len(backbones) == 1 else 1.06), frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.95))
-    save(fig, "validation_protocol_paper")
+    fig.tight_layout(rect=(0, 0, 1, 0.955))
+    save(fig, "warmup_paper")
 
 
 def frontier_paper():
@@ -239,42 +216,39 @@ def frontier_paper():
 
 
 def staleness_paper():
-    """Staleness, 2x3 ({full-SGD, full-Adam} x datasets), fair warmup + rehearsed LR:
-    online MSE vs update fraction, periodic vs drift-triggered. Two optimizer rows because
-    the drift-vs-periodic sign is small and optimizer-dependent (the demoted claim)."""
-    variants = [("full-SGD+m", load("staleness_patchtst_full_sgdm.json"))]
-    adam_p = os.path.join(RES, "staleness_patchtst_full_adam.json")
-    if os.path.exists(adam_p):
-        variants.append(("full-Adam", json.load(open(adam_p))))
+    """Staleness in ONE row of dataset panels (was 2 optimizer rows x 3 datasets): hue is the
+    optimizer, the lighter shade within a hue is the drift-triggered schedule. Merging the rows
+    makes the actual claim visible inside a panel -- the drift-vs-periodic sign tracks the
+    dataset, not the optimizer -- instead of asking the reader to compare across rows."""
+    sg = load("staleness_patchtst_full_sgdm.json")
+    ad = json.load(open(os.path.join(RES, "staleness_patchtst_full_adam.json")))
     names = ["ETTh2", "ETTm2", "appliances"]
-    fig, axes = plt.subplots(len(variants), 3, figsize=(TEXTWIDTH, 1.56 * len(variants)),
-                             squeeze=False)
-    for r, (vlab, st) in enumerate(variants):
-        for c, name in enumerate(names):
-            ax, d = axes[r][c], st[name]
-            ax.axhline(d["static"], color=PAL["static"], ls=":", lw=0.9,
-                       label="static (no adapt)")
-            base = "sgd" if "SGD" in vlab else "adam"
-            for key, col, lab, mk in (("periodic", PAL[base], "periodic every-$k$", "o"),
-                                      ("drift", PAL[base + "_alt"], "drift-triggered", "s")):
+    fig, axes = plt.subplots(1, 3, figsize=(TEXTWIDTH, 1.95), squeeze=False)
+    for c, name in enumerate(names):
+        ax = axes[0][c]
+        ax.axhline(sg[name]["static"], color=PAL["static"], ls=":", lw=0.9,
+                   label="static (no adapt)")
+        for st, base, olab in ((sg, "sgd", "SGD+m"), (ad, "adam", "Adam")):
+            d = st[name]
+            for key, col, mk, slab in (("periodic", PAL[base], "o", "periodic every-$k$"),
+                                       ("drift", PAL[base + "_alt"], "s", "drift-triggered")):
                 pts = sorted(d[key])
                 u = [p[0] for p in pts]
-                m = np.array([p[1] for p in pts])
-                ax.plot(u, m, mk + "-", color=col, label=lab)
+                mm = np.array([p[1] for p in pts])
+                ax.plot(u, mm, mk + "-", color=col, ms=2.6, label=f"{olab}, {slab}")
                 if len(pts[0]) > 2:                       # multi-seed schema: +/- std band
-                    s = np.array([p[2] for p in pts])
-                    ax.fill_between(u, m - s, m + s, color=col, alpha=0.15)
-            win, std = d["win_pct"], d.get("win_pct_std")
-            tag = ("" if win is None else
-                   f" (drift {win:+.1f}%)" if std is None else
-                   f" (drift {win:+.1f}$\\pm${std:.1f}%)")
-            ax.set_title(f"{PRETTY.get(name, name)} $\\cdot$ {vlab}{tag}", fontsize=7)
-            if r == len(variants) - 1:
-                ax.set_xlabel("update fraction")
-            ax.grid(alpha=0.3)
-        axes[r][0].set_ylabel("online MSE")
-    axes[0][0].legend(frameon=False, loc="upper right")
-    fig.tight_layout()
+                    s_ = np.array([p[2] for p in pts])
+                    ax.fill_between(u, mm - s_, mm + s_, color=col, alpha=0.13)
+        # label the quantity, not the phenomenon: these are margins over the periodic
+        # schedule, not a measure of how much the series drifts.
+        ax.set_title(f"{PRETTY.get(name, name)}  ($\\Delta$ vs periodic: "
+                     f"{sg[name]['win_pct']:+.1f}% / {ad[name]['win_pct']:+.1f}%)", fontsize=7.2)
+        ax.set_xlabel("update fraction"); ax.grid(alpha=0.3)
+    axes[0][0].set_ylabel("online MSE")
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    fig.legend(handles=handles, labels=labels, ncol=5, loc="upper center",
+               bbox_to_anchor=(0.5, 1.15), frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     save(fig, "staleness_paper")
 
 
@@ -290,7 +264,7 @@ def regime_paper():
     lrs = sorted(rows[0]["lrs"])
     # R3: the SGD-family arm is SGD+momentum; momentum-free SGD is no longer reported.
     COLS = {"sgdm": PAL["sgd"], "adam": PAL["adam"]}
-    LABS = {"sgdm": "full-SGD+m", "adam": "full-Adam"}
+    LABS = {"sgdm": "full·SGD+m", "adam": "full·Adam"}
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.55))
     for o in ("sgdm", "adam"):
@@ -342,9 +316,9 @@ def regime_paper():
     axB.set_title("(B) rehearsal removes Adam's negative cells, adds a few for SGD+m")
     axB.legend(handles=[
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgdm"], markersize=4.5,
-               label="full-SGD+m"),
+               label="full·SGD+m"),
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["adam"], markersize=4.5,
-               label="full-Adam"),
+               label="full·Adam"),
         Line2D([], [], marker="o", color="w", markerfacecolor="0.5", markersize=4, label="L=96"),
         Line2D([], [], marker="^", color="w", markerfacecolor="0.5", markersize=4, label="L=192"),
     ], loc="lower right", framealpha=0.9)
@@ -359,10 +333,10 @@ def m6_strategies_paper():
     strategy's improvement (right axis): under-warming inflates all four, over-warming
     inflates full-model but deflates PEFT (head/calib)."""
     m6 = load("m6_strategies.json")
-    strats = [("full_sgd", "full$\\cdot$SGD @$10^{-3}$", "#1f77b4"),
-              ("full_adam", "full$\\cdot$Adam @$10^{-4}$", "#d62728"),
-              ("head_sgd", "head$\\cdot$SGD @$10^{-3}$", "#2ca02c"),
-              ("calib_sgd", "calib$\\cdot$SGD @$10^{-3}$", "#9467bd")]
+    strats = [("full_sgd", "full·SGD @$10^{-3}$", "#1f77b4"),
+              ("full_adam", "full·Adam @$10^{-4}$", "#d62728"),
+              ("head_sgd", "head·SGD @$10^{-3}$", "#2ca02c"),
+              ("calib_sgd", "calib·SGD @$10^{-3}$", "#9467bd")]
     order = ["ETTm2|patchtst", "appliances|patchtst"]
     fig, axes = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.5))
     for i, (ax, key) in enumerate(zip(axes, order)):
@@ -395,8 +369,7 @@ def m6_strategies_paper():
 
 
 if __name__ == "__main__":
-    warmup_confound_paper()
-    validation_protocol_paper()
+    warmup_paper()                      # C1a + C1c merged (was warmup_confound + validation_protocol)
     frontier_paper()
     staleness_paper()
     regime_paper()

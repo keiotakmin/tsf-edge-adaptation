@@ -21,7 +21,9 @@
 \newcommand{\GridFlipConfigs}{3}
 \newcommand{\GridFlipMeanGapPt}{1.2}
 \newcommand{\GridUnanimousMeanGapPt}{12.1}
+\newcommand{\GridWarmGridLo}{200}
 \newcommand{\GridWarmCapStep}{20,000}
+\newcommand{\GridWarmGridCount}{7}
 \newcommand{\GridWarmCapCells}{42}
 \newcommand{\GridPThreeSgdmWinMean}{1.03}
 \newcommand{\GridPThreeAdamWinMean}{1.37}
@@ -633,6 +635,9 @@
 \newcommand{\StalAdamAppliancesWinPctStd}{0.3}
 
 % ---- C1a warmup confound (warmup_confound_sgdm.json); values NEGATED to the paper-wide positive-good convention (improvement% >0 = adaptation better; minor 1). InflPt = improvement minus sweet-spot improvement (>0 = benefit INFLATED) ----
+\newcommand{\WcMilestoneLo}{50}
+\newcommand{\WcMilestoneHi}{50,000}
+\newcommand{\WcMilestoneCount}{10}
 \newcommand{\WcEttmTwoDlinearUnder}{+21.0}
 \newcommand{\WcEttmTwoDlinearSweet}{-0.2}
 \newcommand{\WcEttmTwoDlinearOver}{+4.6}
@@ -868,4 +873,4 @@
 % ---- BDG2 subset regularity: share of consecutive-equal samples, i.e. how much of a series is gap-fill rather than movement (the anti-selected subset is mostly fill) ----
 \newcommand{\DataBdgTwoRepeatPct}{0.6}
 \newcommand{\DataBdgTwoRatWorstRepeatPct}{44.5}
-\newcommand{\MacrosDate}{2026-08-12}
+\newcommand{\MacrosDate}{2026-08-13}
