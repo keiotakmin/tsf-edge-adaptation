@@ -92,16 +92,16 @@ def warmup_confound_paper():
             if r == 1:
                 ax.set_xlabel("warmup steps")
             ax2 = ax.twinx()
-            # paper-wide positive-good sign convention (minor 1): improvement = -benefit
+            # paper-wide positive-good sign convention (minor 1): reported benefit = -(file benefit)
             im, ist = -np.array(d["benefit_mean"]), np.array(d["benefit_std"])
             ax2.plot(m, im, "^--", color=PAL["derived"], lw=1.0, ms=2.5)
             ax2.fill_between(m, im - ist, im + ist, color=PAL["derived"], alpha=0.12)
             ax2.tick_params(axis="y", labelcolor=PAL["derived"], labelsize=6)
             if c == len(datasets) - 1:
-                ax2.set_ylabel("adaptation improvement %", color=PAL["derived"])
+                ax2.set_ylabel("adaptation benefit %", color=PAL["derived"])
     handles, _ = axes[0, 0].get_legend_handles_labels()
     handles.append(Line2D([], [], color=PAL["derived"], ls="--", marker="^", ms=2.5,
-                          label="improvement % (right axis, higher = larger apparent benefit)"))
+                          label="benefit % (right axis, higher = larger apparent benefit)"))
     fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.05),
                frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 0.985))
@@ -281,7 +281,7 @@ def staleness_paper():
 def regime_paper():
     """C3 (v2), 1x2 from lr_fairness.jsonl — the online-LR default is a third confound:
     (A) benefit vs LR, median+IQR (the two safety plateaus and the default's placement);
-    (B) per-cell benefit at the default vs at the val-rehearsed LR (Adam rescued)."""
+    (B) per-cell benefit at the default vs at the val-rehearsed LR."""
     rows = [json.loads(l) for l in open(os.path.join(RES, "lr_fairness.jsonl"))]
     core = {"appliances", "bdg2", "ETTm2", "ETTh2", "ETTm1", "ETTh1"}
     # the FULL fair-LR grid (bdg2_* M5 extension subsets excluded from C3 stats)
@@ -339,7 +339,7 @@ def regime_paper():
     axB.set_xlim(lo, hi); axB.set_ylim(y_floor - 3, hi)
     axB.set_xlabel("benefit % at the fixed default ($10^{-3}$)")
     axB.set_ylabel("benefit % at rehearsed LR")
-    axB.set_title("(B) rehearsal rescues Adam; can sink SGD (bottom edge)")
+    axB.set_title("(B) rehearsal removes Adam's negative cells, adds a few for SGD+m")
     axB.legend(handles=[
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgdm"], markersize=4.5,
                label="full-SGD+m"),

@@ -55,6 +55,7 @@ def texname(*parts):
 
 def s1(x, nd=1):                       # signed, nd decimals; round-then-add-0.0 avoids "-0.0"
     return f"{round(x, nd) + 0.0:+.{nd}f}"
+def ki(x): return f"{int(x):,}"        # thousands separator (IEEE style: 20,000 not 20000)
 def f1(x): return f"{x:.1f}"
 def f2(x): return f"{x:.2f}"
 def f3(x): return f"{x:.3f}"
@@ -155,7 +156,7 @@ def _mean_gap(cfgs):                        # per-config mean |SGD-Adam| margin,
 if flip and uni:
     emit("GridFlipMeanGapPt", f1(_mean_gap(flip)))
     emit("GridUnanimousMeanGapPt", f1(_mean_gap(uni)))
-emit("GridWarmCapStep", max(WARM_GRID))
+emit("GridWarmCapStep", ki(max(WARM_GRID)))
 emit("GridWarmCapCells", sum(r["warmup"] == max(WARM_GRID) for r in rows))
 
 for probe, fmt in [("p3_drift", f2), ("p2_gradcos", f2), ("p1_noise", f3)]:
@@ -515,7 +516,7 @@ if wc:
         emit(b + "Under", s1(-r["under"]))
         emit(b + "Sweet", s1(-r["sweet"]))
         emit(b + "Over", s1(-r["over"]))
-        emit(b + "SweetStep", r["sweet_step"])
+        emit(b + "SweetStep", ki(r["sweet_step"]))
         j = r["sweet_idx"]
         emit(b + "UnderStd", f1(r["benefit_std"][0]))
         emit(b + "SweetStd", f1(r["benefit_std"][j]))
@@ -549,8 +550,8 @@ if wc:
         vals = [-r["benefit_mean"][i] for i in idx]
         spreads[key] = max(vals) - min(vals)
         emit(texname("Wc", *key.split("|")) + "PracticalSpreadPt", f1(spreads[key]))
-    emit("WcPracticalLo", LO)
-    emit("WcPracticalHi", HI)
+    emit("WcPracticalLo", ki(LO))
+    emit("WcPracticalHi", ki(HI))
     emit("WcPracticalSpreadMinPt", f1(min(spreads.values())))
     emit("WcPracticalSpreadMaxPt", f1(max(spreads.values())))
 
@@ -585,7 +586,7 @@ if m6:
             "improvement% >0 = adaptation better; InflPt >0 = benefit inflated vs sweet spot")
     for key, e in m6.items():
         ds = key.split("|")[0]
-        emit(texname("MSix", ds) + "SweetStep", e["sweet_step"])
+        emit(texname("MSix", ds) + "SweetStep", ki(e["sweet_step"]))
         for strat, s in e["strategies"].items():
             b = texname("MSix", ds, strat)
             emit(b + "Under", s1(s["under"]))
@@ -626,8 +627,8 @@ if vp:
     section("C1c deployable protocol (validation_protocol.json); improvement% >0 = adaptation better")
     for key, r in vp.items():
         b = texname("Vp", *key.split("|"))
-        emit(b + "OracleStep", r["oracle_step"])
-        emit(b + "ValStep", r["val_step"])
+        emit(b + "OracleStep", ki(r["oracle_step"]))
+        emit(b + "ValStep", ki(r["val_step"]))
         emit(b + "ImpOracle", s1(r["imp_oracle"]))
         emit(b + "ImpVal", s1(r["imp_val"]))
         emit(b + "Delta", s1(r["delta"]))
