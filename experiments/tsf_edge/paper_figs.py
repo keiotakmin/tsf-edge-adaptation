@@ -76,36 +76,31 @@ PAL = {
 }
 
 
-def warmup_paper():
-    """C1a and C1c in ONE 2x3 grid (rows = backbones, cols = datasets), which is legitimate
-    because both studies read the same milestone grid and the same static-test curve (verified
-    identical between the two dumps). Per panel: static +/- std and adapted on the left axis,
-    adaptation benefit % on the right, the held-out pre-drift validation curve rescaled onto the
-    left axis (only its argmin matters), and the two picks as rules.
-    Source is warmup_confound_SGDM -- the file gen_macros reads. Until 2026-08-12 this figure
-    read warmup_confound.json, the pre-migration momentum-free run, so every benefit curve
-    disagreed with Table I (e.g. Appliances/DLinear under-warming +13.5% drawn against +33.4%
-    tabulated). Both dumps are kept; only the *_sgdm one is the paper's."""
-    wc, vp = load("warmup_confound_sgdm.json"), load("validation_protocol_sgdm.json")
+def warmup_confound_paper():
+    """C1a, 2 rows (backbones) x 3 cols (datasets): the warmup confound itself -- static
+    +/- std and adapted on the left axis, estimated benefit on the right, and the
+    test-selected oracle reference as a rule.
+    Reads warmup_confound_SGDM -- the file gen_macros reads. The pre-migration
+    momentum-free warmup_confound.json is NOT interchangeable: plotting it here once put
+    every benefit curve 20 pp away from Table I (Appliances/DLinear at the 50-step end,
+    +13.5% drawn against +33.4% tabulated). Fig. 2 is drawn on this same grid from
+    validation_protocol_sgdm.json; the two dumps carry byte-identical milestone grids and
+    static-test curves, and their oracle picks agree cell for cell, so the two figures can
+    be read panel against panel."""
+    wc = load("warmup_confound_sgdm.json")
     datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
-    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.6))
+    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.35))
     for r, bb in enumerate(backbones):
         for c, ds in enumerate(datasets):
-            d, v, ax = wc[f"{ds}|{bb}"], vp[f"{ds}|{bb}"], axes[r, c]
+            d, ax = wc[f"{ds}|{bb}"], axes[r, c]
             m = d["milestones"]
             sm, ss = np.array(d["static_mean"]), np.array(d["static_std"])
             ax.plot(m, sm, "o-", color=PAL["static"], label="static (no adapt)", zorder=3)
             ax.fill_between(m, sm - ss, sm + ss, color=PAL["static"], alpha=0.15)
             ax.plot(m, d["adapted_mean"], "s-", color=PAL["sgd"], zorder=4,
                     label="adapted (full·SGD+m)")
-            vm = np.array(v["val_mean"])                 # affine rescale onto the static range
-            ax.plot(m, sm.min() + (vm - vm.min()) * (sm.max() - sm.min()) / np.ptp(vm),
-                    "d--", color=PAL["val"], lw=0.9, ms=2.4, zorder=2,
-                    label="held-out pre-drift VAL MSE (rescaled)")
-            ax.axvline(v["oracle_step"], color=PAL["pick"], ls=":", lw=1.1, zorder=1,
+            ax.axvline(d["sweet_step"], color=PAL["pick"], ls=":", lw=1.1, zorder=1,
                        label="test-selected oracle reference")
-            ax.axvline(v["val_step"], color=PAL["val"], ls="--", lw=1.1, zorder=1,
-                       label="validation early-stop pick")
             ax.set_xscale("log"); ax.grid(alpha=0.3)
             ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
             if c == 0:
@@ -123,10 +118,52 @@ def warmup_paper():
     handles, _ = axes[0, 0].get_legend_handles_labels()
     handles.append(Line2D([], [], color=PAL["derived"], ls="--", marker="^", ms=2.5,
                           label="benefit % (right axis)"))
-    fig.legend(handles=handles, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.10),
+    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.06),
                frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 0.955))
-    save(fig, "warmup_paper")
+    save(fig, "warmup_confound_paper")
+
+
+def validation_protocol_paper():
+    """C1c: the deployable stand-in for Fig. 1's oracle. Static TEST MSE (left) against the
+    held-out pre-drift VAL MSE (right; its scale is suppressed because only the argmin
+    matters), with the oracle reference and the validation early-stop pick as rules.
+    Same panel grid, same figure height and the same role colours as Fig. 1, so the two are
+    read panel against panel. Source is validation_protocol_sgdm.json, the dump gen_macros
+    reads."""
+    vp = load("validation_protocol_sgdm.json")
+    datasets, backbones = ["ETTm2", "appliances", "bdg2"], ["dlinear", "patchtst"]
+    fig, axes = plt.subplots(2, 3, figsize=(TEXTWIDTH, 3.35), squeeze=False)
+    for r, bb in enumerate(backbones):
+        for c, ds in enumerate(datasets):
+            ax = axes[r][c]
+            d = vp[f"{ds}|{bb}"]
+            m = d["milestones"]
+            ax.plot(m, d["static_mean"], "o-", color=PAL["static"], zorder=3,
+                    label="static TEST MSE (left axis)")
+            ax.axvline(d["oracle_step"], color=PAL["pick"], ls=":", lw=1.1, zorder=1,
+                       label="test-selected oracle reference")
+            ax.set_xscale("log"); ax.grid(alpha=0.3)
+            ax.set_title(f"{PRETTY[ds]} / {PRETTY[bb]}")
+            if c == 0:
+                ax.set_ylabel("static TEST MSE")
+            if r == 1:
+                ax.set_xlabel("warmup steps")
+            ax2 = ax.twinx()
+            ax2.plot(m, d["val_mean"], "d--", color=PAL["val"], lw=0.9, ms=2.4, zorder=2,
+                     label="held-out pre-drift VAL MSE (right axis)")
+            ax2.axvline(d["val_step"], color=PAL["val"], ls="--", lw=1.1, zorder=1,
+                        label="validation early-stop pick")
+            ax2.set_yticks([])               # scale irrelevant: only the argmin matters
+    handles, _ = axes[0][0].get_legend_handles_labels()
+    handles += [Line2D([], [], ls="--", marker="d", ms=2.4, color=PAL["val"], lw=0.9,
+                       label="held-out pre-drift VAL MSE (right axis)"),
+                Line2D([], [], ls="--", color=PAL["val"], lw=1.1,
+                       label="validation early-stop pick")]
+    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.06),
+               frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.955))
+    save(fig, "validation_protocol_paper")
 
 
 def frontier_paper():
@@ -377,7 +414,8 @@ def m6_strategies_paper():
 
 
 if __name__ == "__main__":
-    warmup_paper()                      # C1a + C1c merged (was warmup_confound + validation_protocol)
+    warmup_confound_paper()             # C1a (Fig. 1)
+    validation_protocol_paper()         # C1c (Fig. 2) -- same grid, read against Fig. 1
     frontier_paper()
     staleness_paper()
     regime_paper()
