@@ -103,7 +103,7 @@ def warmup_paper():
                     "d--", color=PAL["val"], lw=0.9, ms=2.4, zorder=2,
                     label="held-out pre-drift VAL MSE (rescaled)")
             ax.axvline(v["oracle_step"], color=PAL["pick"], ls=":", lw=1.1, zorder=1,
-                       label="oracle sweet spot")
+                       label="test-selected oracle reference")
             ax.axvline(v["val_step"], color=PAL["val"], ls="--", lw=1.1, zorder=1,
                        label="validation early-stop pick")
             ax.set_xscale("log"); ax.grid(alpha=0.3)
@@ -202,7 +202,7 @@ def frontier_paper():
     for lab in LEGEND_ORDER:
         if lab is None:
             handles.append(Line2D([0], [0], ls="--", color="0.5",
-                                  label="Pareto frontier (memory)"))
+                                  label="nondominated (memory axis)"))
             continue
         mk, col = style[lab]
         handles.append(Line2D([0], [0], marker=mk, color="w",
@@ -288,7 +288,7 @@ def regime_paper():
     axA.set_xscale("log"); axA.set_ylim(-70, 44)
     axA.set_xlabel("online learning rate")
     axA.set_ylabel(f"benefit % (median+IQR, {n} cells)")
-    axA.set_title("(A) LR safety plateaus vs the default")
+    axA.set_title("(A) Empirical nonnegative-benefit ranges\nand the shared default")
     axA.legend(loc="lower left", framealpha=0.9)
     axA.grid(alpha=0.3, which="both")
 
@@ -313,7 +313,7 @@ def regime_paper():
     axB.set_xlim(lo, hi); axB.set_ylim(y_floor - 3, hi)
     axB.set_xlabel("benefit % at the fixed default ($10^{-3}$)")
     axB.set_ylabel("benefit % at rehearsed LR")
-    axB.set_title("(B) rehearsal removes Adam's negative cells, adds a few for SGD+m")
+    axB.set_title("(B) Validation-based rehearsal substantially\nreduces Adam's below-static cells")
     axB.legend(handles=[
         Line2D([], [], marker="s", color="w", markerfacecolor=COLS["sgdm"], markersize=4.5,
                label="full·SGD+m"),
