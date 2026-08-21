@@ -69,7 +69,8 @@ for r, name in enumerate(DATASETS):
         ax.fill_between(MILESTONES, sm - ss, sm + ss, color="0.35", alpha=0.15)
         ax.plot(MILESTONES, am, "s-", color="#1f77b4", label="full_sgd+m (adapt)")
         ax.fill_between(MILESTONES, am - asd, am + asd, color="#1f77b4", alpha=0.15)
-        ax.axvline(MILESTONES[j], color="green", ls=":", lw=1, label="sweet spot")
+        ax.axvline(MILESTONES[j], color="green", ls=":", lw=1,
+                   label="test-selected oracle reference")
         ax.set_xscale("log"); ax.set_ylabel("online MSE"); ax.set_xlabel("warmup steps")
         ax.set_title(f"{name} / {bb}"); ax.grid(alpha=0.3); ax.legend(fontsize=7, loc="best")
         ax2 = ax.twinx()
@@ -79,7 +80,7 @@ for r, name in enumerate(DATASETS):
 
 fig.suptitle("Adaptation benefit is NON-MONOTONE in warmup budget (3 seeds): under-warming "
              "(undertrained) and over-warming (overfits pre-drift segment) both inflate it; "
-             "honest only at the sweet spot", fontsize=10)
+             "honest only at the test-selected oracle reference", fontsize=10)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 out = os.path.join(ROOT, "results", "tsf_edge")
 for ext in ("png", "pdf"):

@@ -129,7 +129,8 @@ def main():
 
     handles = [Line2D([0], [0], marker=mk, color="w", markerfacecolor=col, markeredgecolor="k",
                       markersize=13, label=lab) for _, _, lab, mk, col in COMBOS]
-    handles.append(Line2D([0], [0], ls="--", color="0.5", label="Pareto frontier (memory)"))
+    handles.append(Line2D([0], [0], ls="--", color="0.5",
+                          label="nondominated (memory axis)"))
     fig.legend(handles=handles, loc="upper center", ncol=4, fontsize=10, frameon=True,
                bbox_to_anchor=(0.5, 0.99))
     fig.suptitle("Resource frontier of on-device adaptation (fair warmup + rehearsal-selected "

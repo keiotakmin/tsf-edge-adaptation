@@ -254,7 +254,8 @@ def staleness_paper():
 
 def regime_paper():
     """C3 (v2), 1x2 from lr_fairness.jsonl — the online-LR default is a third confound:
-    (A) benefit vs LR, median+IQR (the two safety plateaus and the default's placement);
+    (A) benefit vs LR, median+IQR (the two nonnegative-benefit ranges and the default's
+        placement);
     (B) per-cell benefit at the default vs at the val-rehearsed LR."""
     rows = [json.loads(l) for l in open(os.path.join(RES, "lr_fairness.jsonl"))]
     core = {"appliances", "bdg2", "ETTm2", "ETTh2", "ETTm1", "ETTh1"}
@@ -330,13 +331,19 @@ def regime_paper():
 def m6_strategies_paper():
     """C1 (M6), 1x2: the warmup confound is strategy-generic and distorts strategy RANKINGS.
     Static U-shape (gray, left axis; shared across strategies by construction) + each
-    strategy's improvement (right axis): under-warming inflates all four, over-warming
-    inflates full-model but deflates PEFT (head/calib)."""
-    m6 = load("m6_strategies.json")
-    strats = [("full_sgd", "full·SGD @$10^{-3}$", "#1f77b4"),
+    strategy's improvement (right axis): under-warming inflates all four, while over-warming
+    splits them -- it inflates the full-model arms and deflates PEFT (head/calib) on
+    Appliances, the more drift-heavy panel.
+    Reads m6_strategies_SGDM -- the file gen_macros reads. Until 2026-08-21 this figure read
+    m6_strategies.json, the pre-migration momentum-free run, so the drawn curves disagreed
+    with the \MSix* macros (e.g. ETTm2 head over-warm inflation -5.5 drawn against +0.0
+    tabulated). Both dumps are kept; only the *_sgdm one is current. Same fix as the one
+    applied to Fig. 1 on 2026-08-12."""
+    m6 = load("m6_strategies_sgdm.json")
+    strats = [("full_sgdm", "full·SGD+m @$10^{-3}$", "#1f77b4"),
               ("full_adam", "full·Adam @$10^{-4}$", "#d62728"),
-              ("head_sgd", "head·SGD @$10^{-3}$", "#2ca02c"),
-              ("calib_sgd", "calib·SGD @$10^{-3}$", "#9467bd")]
+              ("head_sgdm", "head·SGD+m @$10^{-3}$", "#2ca02c"),
+              ("calib_sgdm", "calib·SGD+m @$10^{-3}$", "#9467bd")]
     order = ["ETTm2|patchtst", "appliances|patchtst"]
     fig, axes = plt.subplots(1, 2, figsize=(TEXTWIDTH, 2.5))
     for i, (ax, key) in enumerate(zip(axes, order)):
@@ -359,7 +366,8 @@ def m6_strategies_paper():
         if i == len(order) - 1:
             ax2.set_ylabel("adaptation improvement %")
     handles = [Line2D([], [], marker="o", color="0.35", label="static (no adapt; left axis)"),
-               Line2D([], [], ls=":", color="green", lw=1.1, label="sweet spot")]
+               Line2D([], [], ls=":", color="green", lw=1.1,
+                      label="test-selected oracle reference")]
     handles += [Line2D([], [], marker="^", ls="--", color=col, ms=2.5, label=lab)
                 for _, lab, col in strats]
     fig.legend(handles=handles, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.12),

@@ -62,7 +62,8 @@ def trajectory(data, bb, seed=0):
 
 def _plot(ax, name, bb, w, st, vl, j_oracle, j_val):
     ax.plot(w, st, "o-", color="0.35", label="static TEST MSE (oracle target)")
-    ax.axvline(MILESTONES[j_oracle], color="0.35", ls=":", lw=1.2, label="oracle sweet spot")
+    ax.axvline(MILESTONES[j_oracle], color="0.35", ls=":", lw=1.2,
+               label="test-selected oracle reference")
     ax.set_xscale("log"); ax.set_ylabel("static TEST MSE"); ax.set_xlabel("warmup steps")
     ax.set_title(f"{name} / {bb}"); ax.grid(alpha=0.3)
     ax2 = ax.twinx()
@@ -121,4 +122,5 @@ for ext in ("png", "pdf"):
 json.dump(dump, open(os.path.join(out, "validation_protocol_sgdm.json"), "w"), indent=2)
 print("\nsaved", os.path.join(out, "validation_protocol.png"))
 print("Read: if val-early-stop improvement ≈ oracle improvement (small Δ), pre-drift validation is a "
-      "sound deployable stand-in for the fair sweet spot; a large Δ means drift breaks it (a finding).")
+      "sound deployable stand-in for the test-selected oracle reference; a large Δ means "
+      "drift breaks it (a finding).")

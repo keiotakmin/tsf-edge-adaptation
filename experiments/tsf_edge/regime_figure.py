@@ -1,16 +1,25 @@
 """C2 figure (v2; contribution renumbered C3→C2 on 2026-07-07 when the Results order became
 C1 warmup → C2 LR-confound → C3 frontier+recipe) — the ONLINE-LR DEFAULT is a third
 evaluation confound.
-Built from lr_fairness.jsonl (the M1 fair-LR grid: 72 cells = 6 datasets x 2 backbones x
-L in {96,192} x 3 seeds, H=24, 8-point LR grid, per-optimizer val-rehearsed LR). Two panels:
-  (A) adaptation benefit vs online LR (median + IQR across all cells): BOTH optimizers have an
-      LR safety plateau; the fixed default 1e-3 sits INSIDE SGD's plateau and OUTSIDE Adam's --
-      that placement, not optimizer intrinsics, manufactured the old "SGD safe / Adam
-      over-adapts" asymmetry of the 360-cell grid.
+
+SUPERSEDED by paper_figs.regime_paper, which is what the paper's Fig. 2 is built from. This
+standalone version is kept because it still reproduces the PRE-MIGRATION reading: it plots the
+momentum-free `sgd` arm, which the paper retired in favour of `sgdm` (see online_eval.SGD_STRAT).
+Do not read its SGD curve as the paper's SGD-family result.
+
+Built from lr_fairness.jsonl, filtered to the six core datasets: 360 cells = 6 datasets x
+2 backbones x H in {24,48,96} x L in {96,192} x 5 seeds, over the 10-point LR grid the file
+carries ({1,3}x10^k from 3e-6 to 1e-1), with the per-optimizer val-rehearsed LR. The counts in
+the figure are computed from the data at draw time, so they follow the file rather than this
+docstring. Two panels:
+  (A) adaptation benefit vs online LR (median + IQR across all cells): each optimizer has an
+      empirical nonnegative-benefit range, and the two ranges are offset by about a grid step;
+      the fixed default 1e-3 falls INSIDE SGD's and OUTSIDE Adam's -- that placement, not
+      optimizer intrinsics, manufactured the old "SGD safe / Adam over-adapts" asymmetry.
   (B) per-cell benefit at the fixed default (x) vs at the val-rehearsed LR (y): Adam's
       negative-at-default cells are rescued into the upper-left quadrant; SGD hugs the diagonal.
 The old drift x noise regime panel (grid.jsonl) is DEMOTED to text: it described where the
-default exits Adam's plateau, not which optimizer is better.
+default leaves Adam's nonnegative-benefit range, not which optimizer is better.
 """
 from __future__ import annotations
 import json, os
@@ -31,7 +40,7 @@ LAB = {"sgd": "full-SGD", "adam": "full-Adam"}
 
 fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5.2))
 
-# ---- Panel A: the two LR safety plateaus ----
+# ---- Panel A: the two empirical nonnegative-benefit ranges ----
 for o in ("sgd", "adam"):
     M = np.array([[r[o][f"{lr:g}"]["benefit"] for lr in LRS] for r in rows])
     med = np.median(M, axis=0)
@@ -53,7 +62,7 @@ axA.set_xscale("log")
 axA.set_ylim(-72, 45)
 axA.set_xlabel("online learning rate", fontsize=11)
 axA.set_ylabel(f"adaptation benefit %  (median + IQR over {len(rows)} cells)", fontsize=11)
-axA.set_title("(A) Both optimizers have an LR safety plateau;\n"
+axA.set_title("(A) Empirical nonnegative-benefit ranges;\n"
               "the default sits inside SGD's and outside Adam's", fontsize=12)
 axA.legend(fontsize=9, loc="lower left", framealpha=0.95)
 axA.grid(alpha=0.3, which="both")

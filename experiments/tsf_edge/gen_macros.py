@@ -274,7 +274,7 @@ if os.path.exists(lrf_path):
             emit(b + "CfgAdamWins", aw)
             emit(b + "Cfg" + SGDN + "Wins", ncfg - aw)
             emit(b + "CfgUnanimous", unan)
-    for lr in common_lrs:                                   # pooled per-LR plateau statistics
+    for lr in common_lrs:                     # pooled per-LR nonnegative-benefit statistics
         for o in (SGDF, "adam"):
             vals = [r[o][f"{lr:g}"]["benefit"] for r in lrf]
             fin = [v for v in vals if v == v]                # a NaN mse (diverged stream at an
@@ -589,8 +589,9 @@ if lt:
 # ---------- M6: warmup confound across strategies ----------
 m6 = load_optional("m6_strategies_sgdm.json")
 if m6:
-    section("M6 strategy-generality of the warmup confound (m6_strategies.json); "
-            "improvement% >0 = adaptation better; InflPt >0 = benefit inflated vs sweet spot")
+    section("M6 strategy-generality of the warmup confound (m6_strategies_sgdm.json); "
+            "improvement% >0 = adaptation better; InflPt >0 = benefit inflated vs the "
+            "test-selected oracle reference")
     for key, e in m6.items():
         ds = key.split("|")[0]
         emit(texname("MSix", ds) + "SweetStep", ki(e["sweet_step"]))
