@@ -98,19 +98,70 @@ STRATEGIES = {
     "head_sgd":  ("head", "sgd",  0),
     "calib_sgd": ("calib", "sgd", 0),      # PatchTST only (PEFT-style)
 }
-_WHICH = {"full": "all", "head": "head", "calib": "calib"}
+_WHICH = {"full": "all", "head": "head", "calib": "calib",
+          "wrap": None}      # forecaster frozen; all trainable parameters come from `wrap`
 
 
 def make_online_optimizer(okind, params, lr):
-    """Online-optimizer factory for the three arms the paper reports. The extension study's
-    contenders (memory-light, learning-rate-free and non-stationary-online rules) live in a
-    separate module that is not part of this release."""
-    if okind == "sgd":                               # 0 state (retired from the paper; kept
-        return torch.optim.SGD(params, lr=lr)        # so the pre-migration readings reproduce)
-    if okind == "adam":                              # 2x state
+    """Online-optimizer factory. sgd/adam = the paper's pair (torch built-ins, unchanged);
+    then the Stage-0 extension contenders (memory-light / learning-rate-free) and the Stage-0b
+    contenders (optimizers DESIGNED for non-stationary online prediction, online_optimizers.py).
+    See stage0_optimizers.py. For the LR-free family, lr is a multiplier (default 1.0)."""
+    if okind == "sgd":
+        return torch.optim.SGD(params, lr=lr)
+    if okind == "adam":
         return torch.optim.Adam(params, lr=lr)
-    if okind == "sgdm":                              # 1x state -- the paper's SGD-family arm
+    if okind == "sgdm":                              # 1x state -- the missing SGD+momentum rung
         return torch.optim.SGD(params, lr=lr, momentum=0.9)
+    if okind in ("idbd", "autostep", "obgd", "adaptive_obgd", "dons", "upgd",
+                 "obsign", "obsign_t5e3", "obsign_t3e3", "obsign_t2e3", "obsign_t1p5e3",
+                 "obsign_t1e3", "relsign"):
+        import online_optimizers as oo               # Stage 0b/0c
+        cls, kw = {
+            "idbd": (oo.IDBD, {}),                   # 2x state, lr = initial step alpha_0
+            "autostep": (oo.Autostep, {}),           # 3x state, scale-robust successor to IDBD
+            "obgd": (oo.ObGD, {}),                   # 0x state, overshoot-bounded
+            "adaptive_obgd": (oo.AdaptiveObGD, {}),  # 1x state
+            "dons": (oo.DiscountedONS, {}),          # 1x state, discounted diagonal Newton
+            "upgd": (oo.UPGD, {}),
+            # Stage 0c, 0x state. tau is the pinned guard level; the three arms MEASURE the
+            # sensitivity to it rather than asserting a default nobody has published.
+            # The six tau values are a SWEEP OF THE KNEE MARGIN, not six candidate defaults:
+            # the knee sits at tau*RMS(p), so on this data they land 0.28 / 0.58 / 0.80 / 0.98 /
+            # 1.10 / 1.28 decades below the 1e-3 the deployment ships. The design rule the paper
+            # states -- keep the knee a decade under the shipped rate -- is a claim about where
+            # the pass/fail boundary in THAT quantity is, and three values could only say it lay
+            # somewhere between 0.80 and 1.28. The three added on 2026-09-04 bracket it.
+            "obsign": (oo.ObSign, dict(tau=1e-2)),
+            "obsign_t5e3": (oo.ObSign, dict(tau=5e-3)),
+            "obsign_t3e3": (oo.ObSign, dict(tau=3e-3)),
+            "obsign_t2e3": (oo.ObSign, dict(tau=2e-3)),
+            "obsign_t1p5e3": (oo.ObSign, dict(tau=1.5e-3)),
+            "obsign_t1e3": (oo.ObSign, dict(tau=1e-3)),
+            "relsign": (oo.RelSign, {}),             # 0x, lr IS the fraction tau
+        }[okind]
+        return cls(params, lr=lr, **kw)
+    if okind == "lion":                              # 1x state (sign-momentum)
+        from lion_pytorch import Lion
+        return Lion(params, lr=lr)
+    if okind == "signsgd":                           # 0 state (sign of grad, no momentum)
+        from pytorch_optimizer import SignSGD
+        return SignSGD(params, lr=lr, momentum=0.0)
+    if okind == "adafactor":                         # sublinear state (factored 2nd moment);
+        from pytorch_optimizer import AdaFactor     # relative_step off so the LR grid applies
+        return AdaFactor(params, lr=lr, relative_step=False)
+    if okind == "prodigy":                           # LR-free (Adam-flavored, ~4x state)
+        from pytorch_optimizer import Prodigy
+        return Prodigy(params, lr=lr)
+    if okind == "dadapt_sgd":                        # LR-free (SGD-flavored)
+        from pytorch_optimizer import DAdaptSGD
+        return DAdaptSGD(params, lr=lr)
+    if okind == "dadapt_adam":                       # LR-free (Adam-flavored)
+        from pytorch_optimizer import DAdaptAdam
+        return DAdaptAdam(params, lr=lr)
+    if okind == "dog":                               # LR-free (distance-over-gradients)
+        from dog import DoG
+        return DoG(params, lr=lr)
     raise ValueError(f"unknown online optimizer {okind!r}")
 
 
@@ -122,7 +173,7 @@ def _clone(model):
 
 def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
                 device="cuda", schedule="every", k=1, tau=1.5, ema_beta=0.9, stride=None,
-                adapt_on="current"):
+                adapt_on="current", wrap=None, loss_fn=None):
     """Online phase on an ALREADY-WARMED model: predict / score / adapt, rolling forward.
     Adapts a CLONE so the caller's warmed model is left untouched (for the warmup sweep).
 
@@ -135,7 +186,16 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
     adapt_on="trailing" trains on the most recent FULLY-REVEALED window (x[t-H-L:t-H],
     y[t-H:t]) instead: no future eval target can appear in any gradient even at stride<H,
     so stride=1 + trailing is the leak-free control that isolates the DSOF leak from the
-    eval-window-set / update-frequency differences of stride-1 vs stride-H (referee M3)."""
+    eval-window-set / update-frequency differences of stride-1 vs stride-H (referee M3).
+
+    wrap / loss_fn are optional hooks for adaptation methods that ADD parameters around a
+    frozen forecaster instead of fine-tuning its own weights (calibration-module TTA). Both
+    default to None and the loop is then byte-for-byte the one every stored result was
+    produced by: wrap=None leaves the forward pass as model(x), loss_fn=None leaves the
+    adaptation objective as MSE. wrap(model, backbone, L, H, C, device) returns
+    (forward_callable, extra_trainable_params); those parameters join adapt_params and are
+    therefore counted in n_adapt_params and in the measured optimizer state exactly like any
+    fine-tuned weight. Use strategy prefix "wrap" to freeze the forecaster completely."""
     T = d.shape[0]
     stride = H if stride is None else stride
     if strategy in STRATEGIES:
@@ -146,8 +206,14 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
         state_mult = None       # unknown a priori -> measured from opt.state after the stream
     model = _clone(model)
     set_trainable(model, backbone, which)
-    adapt_params = [p for p in model.parameters() if p.requires_grad] if which else []
-    opt_online = make_online_optimizer(okind, adapt_params, lr) if which else None
+    fwd, extra = (model, [])
+    if wrap is not None:
+        fwd, extra = wrap(model, backbone, L, H, d.shape[1], device)
+    adapt_params = ([p for p in model.parameters() if p.requires_grad] if which else []) + extra
+    # condition is on adapt_params, not on `which`: with a wrapper the forecaster is frozen
+    # (which is None) yet there is still something to optimise. For every stored strategy the
+    # two conditions agree, so no existing result changes.
+    opt_online = make_online_optimizer(okind, adapt_params, lr) if adapt_params else None
     # ObGD-family rules need the scalar error to size their step; every other optimizer sees
     # the identical call sequence it saw before this hook existed (results stay comparable).
     needs_loss = getattr(opt_online, "needs_loss", False)
@@ -158,7 +224,7 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
     while t + H <= T:
         x, y = d[t - L:t].unsqueeze(0), d[t:t + H].unsqueeze(0)
         with torch.no_grad():
-            err = F.mse_loss(model(x), y).item()
+            err = F.mse_loss(fwd(x), y).item()
         errs.append(err); nwin += 1
         do_adapt = opt_online is not None
         if do_adapt and schedule == "every":
@@ -179,7 +245,7 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
                 torch.cuda.reset_peak_memory_stats(); torch.cuda.synchronize()
             t0 = time.perf_counter()
             opt_online.zero_grad()
-            loss = F.mse_loss(model(xa), ya); loss.backward()
+            loss = (loss_fn or F.mse_loss)(fwd(xa), ya); loss.backward()
             opt_online.step(loss=loss.detach()) if needs_loss else opt_online.step()
             if device == "cuda":
                 torch.cuda.synchronize(); peak_mem = max(peak_mem, torch.cuda.max_memory_allocated())

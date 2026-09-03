@@ -4,19 +4,29 @@ Reproducibility package for *"When Does Online Adaptation Pay on the Edge? A Lea
 Evaluation of Warmup, Learning-Rate Selection, and Resource Trade-offs for Time-Series
 Forecasting"* (under review, IEEE BigData 2026).
 
-Takumi Fujimoto, Hiroaki Nishi — Graduate School of Science and Technology, Keio University.
-
 This repository contains (a) the complete experiment harness, (b) the **result artifacts the
 paper is built from** (including the 360-cell optimizer grid `grid.jsonl` and the
 learning-rate grid `lr_fairness.jsonl`), and (c) the single-source pipeline that turns those
 artifacts into every number and figure in the paper.
+
+It also carries the harness and artifacts of the **extended study** submitted to IEEE Access,
+*"Zero-State, Tuning-Free Online Adaptation for On-Device Energy Time-Series Forecasting"*,
+which measures twenty update rules on the same 216-cell grid and proposes a stateless one. That
+layer is the `stage0_*` scripts and result files; see [Extension study](#extension-study-ieee-access)
+below. The two layers share the protocol, the data and `online_eval.py`, and are otherwise
+independent: the conference layer's scripts import nothing from the extension.
 
 ## Layout
 
 ```
 experiments/tsf_edge/    the harness (see "Reproduction map" below)
     data/                datasets: bdg2*.csv shipped; ETT + Appliances via get_data.sh
-results/tsf_edge/        the paper's result artifacts (data files + generated macros/figures)
+    online_optimizers.py the extension study's update rules, ObSign among them
+    stage0_*.py          the extension study's harness, pooling and tables
+results/tsf_edge/        both papers' result artifacts (data files + generated macros/figures)
+    macros.tex           conference paper: every number, generated
+    macros_ext.tex       extension paper: every number, generated (\Ext... namespace)
+    stage0*_optimizers*.jsonl   the extension study's cells
 ```
 
 ## Quickstart 1 — rebuild the paper's numbers & figures WITHOUT a GPU (seconds)
@@ -79,6 +89,58 @@ full-SGD and full-Adam, optimizer-state bytes, and the three optimizer-independe
 10-point online-LR sweep (a `{1,3}x10^k` grid from `3e-6` to `1e-1`: validation-rehearsal MSE +
 test MSE + benefit per rate, per optimizer) and the rehearsed / test-oracle readings.
 
+## Extension study (IEEE Access)
+
+*"Zero-State, Tuning-Free Online Adaptation for On-Device Energy Time-Series Forecasting"* takes
+the third confound of the conference paper — that comparisons across optimizers are usually run
+at one rate inherited from one of them — and turns it into a requirement a deployment imposes:
+the rate has to be fixed once, before the site is seen. Together with a bound on optimizer
+state and the requirement that adapting not be worse than leaving the model frozen, that gives
+three requirements, and the study measures twenty update rules against them on the same 216
+cells. No existing design class meets all three; ObSign, which caps a sign step at a fixed
+fraction of each parameter's own RMS, does, with no optimizer state.
+
+Same rule as the conference layer: **no number is typed by hand.** `gen_macros_stage0.py`
+regenerates all of `macros_ext.tex` from the shipped `stage0*.jsonl`, and
+`stage0_figs.py` regenerates the two tables and three figures.
+
+```bash
+pip install -r requirements.txt                              # includes the two extra deps
+python experiments/tsf_edge/gen_macros_stage0.py             # -> results/tsf_edge/macros_ext.tex
+python experiments/tsf_edge/stage0_pool.py                   # the pooled tables, as markdown
+python experiments/tsf_edge/test_online_optimizers.py        # the update rules' own assertions
+```
+
+| Paper item | Script | Artifact | Runtime (1x A100) |
+|---|---|---|---|
+| the memory-light and learning-rate-free contenders | `stage0_optimizers.py --stage 0` (per `--L/--H` slice) | `stage0_optimizers.jsonl` (216 cells) | — |
+| the rules built for non-stationary streams | `run_stage0b.sh` | `stage0b_optimizers.jsonl` | ~27 h |
+| ObSign and its ablation | `run_stage0c.sh` | `stage0c_optimizers.jsonl` | ~10 h |
+| bracketing fill-in (two top rates; a shared grid is only fair if it brackets every rule's optimum) | `run_stage0_fillin.sh` on two hosts, then `merge_stage0_fillin.py --write` | `stage0_fillin_*.jsonl` | — |
+| seeds 3-4 for the leading rules (216 -> 360 cells) | `run_stage0_seeds.sh`, then `merge_stage0_seeds.py --write` | `stage0_seeds34*.jsonl` | — |
+| the deployment (parameter-efficient) configurations | `run_g2_peft.sh` | `stage0_optimizers_{calib,head}.jsonl` | ~2.5 h |
+| comparison with PETSA's modules and loss | `petsa_compare.py` (uses `petsa_calib.py`) | rows inside the PEFT artifacts | — |
+| Table II (deployability at every shipped rate) | `stage0_figs.requirement_table()` | `requirement_table.tex` | seconds |
+| Table III (all rules, both readings) | `stage0_figs.optimizer_table()` | `optimizer_table.tex` | seconds |
+| Figs. 1-3 | `stage0_figs.{requirement_gap_paper,knee_paper,lr_response_paper}()` | `*_paper.pdf` | seconds |
+| every number in the extension paper | `gen_macros_stage0.py` | `macros_ext.tex` | seconds, no GPU |
+| the palette's colour-blind separation | `check_palette.py` | printed report | seconds |
+
+Runtimes are the measured wall-clock of the runs the paper reports, on one A100; `—` = not
+recorded (the fill-in and seed passes ran split across two other hosts).
+
+Reading the artifacts: one JSON line per cell, keyed by (dataset, backbone, L, H, seed), with
+each rule's full sweep over the shared 10-rate grid (`{val, test, benefit}` per rate), the
+validation-selected and test-oracle rates, and the measured optimizer-state bytes. The four
+stage files are separate on purpose — every added run got a new prefix rather than rewriting the
+previous artifact — and `stage0_pool.load_cells()` merges them per cell. `stage0_pool.py` is the
+single implementation of every pooled statistic the paper quotes; the tables, the figures and
+the macros all call it, so they cannot disagree.
+
+A sweep of the guard level tau finer than the three values in `stage0c_optimizers.jsonl` was
+running when this commit was made; its artifact (`stage0d_optimizers.jsonl`) and the runner that
+produces it land with the next sync.
+
 ## Protocol notes (what makes the evaluation fair)
 
 - **Leakage-free streaming**: non-overlapping windows at stride = horizon; every target is
@@ -123,6 +185,6 @@ against the checksums of the exact files used in the paper.
 
 Code: MIT (see `LICENSE`). Datasets keep their original licenses (see the data README).
 
-Citation: this repository accompanies a paper under review; the citation entry and the paper
-link will be added once the venue is decided. Until then, please cite the repository URL and
-the commit hash you used.
+Citation: this repository accompanies two papers under review (the conference paper above and
+the IEEE Access extension); the citation entries and the paper links will be added once the
+venues are decided. Until then, please cite the repository URL and the commit hash you used.

@@ -4,3 +4,10 @@ torch==2.7.0
 numpy==1.26.4
 pandas==2.1.4
 matplotlib==3.8.0
+
+# The IEEE Access extension study only (experiments/tsf_edge/stage0_*): Lion comes from
+# lion-pytorch, and signSGD / AdaFactor / Prodigy / D-Adaptation / DoG from pytorch-optimizer.
+# The conference paper's scripts do not import either, so a reader reproducing only that layer
+# can skip these two lines.
+lion-pytorch==0.2.4
+pytorch-optimizer==3.10.1
