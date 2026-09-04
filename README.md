@@ -196,7 +196,7 @@ averages **−20.14%** with 175 cells below and 4 divergent; SGD+m is
 safer (+11.91%, 20 below) but plateaus. Rules designed for non-stationary streams are safe and
 plateau lower; learning-rate-free rules are untuned by construction but not competitive.
 
-![the requirement gap](docs/figs/requirement_gap_paper.png)
+<img src="docs/figs/requirement_gap_paper.png" alt="the requirement gap" width="430">
 
 *Adaptation benefit with no rate tuning, against adaptation state. `( )` after each name = cells
 below the frozen model. The lower panel is where adapting is worse than not adapting.*
