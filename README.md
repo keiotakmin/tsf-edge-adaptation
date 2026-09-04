@@ -8,7 +8,7 @@ preprint [arXiv:2609.01126](https://arxiv.org/abs/2609.01126)).
 Six public multivariate streams (ETTh1/h2, ETTm1/m2, UCI Appliances, BDG2 smart meters),
 two backbones (DLinear, compact PatchTST), a 360-cell design, 5 seeds.
 
-## What the paper finds
+## Findings
 
 **The reported benefit of online adaptation is largely an artifact of three evaluation
 choices.** We measure how large each one is, and give a selection procedure that removes it.
@@ -18,7 +18,8 @@ directions.** An under-warmed baseline underfits, so adaptation gets credit for 
 training; an *over*-warmed baseline generalizes worse from the pre-drift segment to the drifted
 test window, inflating the benefit again. The dependence is two-sided and non-monotone, so
 "train the baseline longer" is not a fix. Over the 1,000–20,000-step range the estimated
-benefit moves by 3.0–18.8 pp across six dataset–backbone settings.
+benefit — a skill score with the static model as the reference forecast — moves by
+3.0–18.8 pp across six dataset–backbone settings.
 
 ![warmup confound](docs/figs/warmup_confound_paper.png)
 
@@ -27,10 +28,10 @@ It is non-monotone in every panel.*
 
 **2. Comparing optimizers at one shared default rate reverses the verdict.** At the usual
 `lr=1e-3`, Adam wins 45 of 360 cells and falls below the static baseline in 174 of them — the
-familiar "SGD is safe, Adam over-adapts online" reading. Select each optimizer's online rate by
-*rehearsing* adaptation on a held-out pre-drift slice (never test data) and Adam wins **310 of
-360** cells with **4** below-static. The conclusion was about rate sensitivity, not about
-optimizer quality.
+familiar "SGD is safe, Adam over-adapts online" reading. Selecting each optimizer's online rate by
+*rehearsing* adaptation on a held-out pre-drift slice (never test data) reverses this: Adam
+wins **310 of 360** cells, with **4** below static. The original verdict measured rate
+sensitivity, not optimizer quality.
 
 ![learning-rate fairness](docs/figs/regime_paper.png)
 
@@ -41,25 +42,27 @@ curves happen to cross. (B) the same cells at the default vs. at the rehearsed r
 use non-overlapping windows at stride = horizon and reproduce the inflation the leaky
 alternative causes — up to +25.9 pp on ETTh2/PatchTST — against a delayed-adaptation control.
 
-**And adaptation state, not accuracy, is the binding edge constraint.** On
+**Adaptation state, not accuracy, is the binding constraint on the edge.** On
 Appliances/PatchTST, calibration-only Adam reaches +44.5% benefit using 204 KB of adaptation
 state against full-model Adam's +52.5% at 1,028 KB: **5× less state for ~85% of the benefit**.
 Several parameter-efficient variants are nondominated on the state-memory axis. We also show
 that reported smart-meter gains depend on the meter-selection rule, so we fix it ex ante.
 
-Taken together these support a **validation-only commissioning procedure**: pick the warmup
-budget and the online rate on a pre-drift validation slice, before the device sees its site.
-Target-device latency and energy remain to be measured — the compute axis here is A100-measured.
+Together these support a **validation-only commissioning procedure**: the warmup budget and
+the online rate are both selected on a pre-drift validation slice, before the device sees its
+site. Target-device latency and energy remain to be measured; the compute axis here is
+A100-measured.
 
-## What you can reuse
+## Reusable components
 
 - **The protocol, as working code.** `online_eval.py` is self-contained: `stream_eval`
   (leakage-free streaming), `warm_and_select` (validation-selected warmup) and
-  `select_online_lr` (rehearsal-based online-rate selection). Point them at your own stream.
-- **A checklist for evaluating online adaptation.** [Protocol notes](#protocol-notes-what-makes-the-evaluation-fair)
-  states each confound, the fix, and the script that measures what happens without it — so a
-  claim of "adaptation helps by X%" can be audited rather than taken on faith.
-- **Reusable artifacts.** `grid.jsonl` (360 cells) and `lr_fairness.jsonl` (390 lines, each
+  `select_online_lr` (rehearsal-based online-rate selection). They apply unchanged to another
+  stream.
+- **A checklist for evaluating online adaptation.** [Evaluation protocol](#evaluation-protocol)
+  states each confound, the correction, and the script that measures the effect of omitting
+  it, so a reported benefit can be audited against the choices that produced it.
+- **The sweep artifacts.** `grid.jsonl` (360 cells) and `lr_fairness.jsonl` (390 lines, each
   carrying a full 10-point online-LR sweep) are enough to re-derive our statistics or test a new
   hypothesis without a GPU. The BDG2 meter subsets are specified ex ante and shipped.
 
@@ -67,9 +70,9 @@ Target-device latency and energy remain to be measured — the compute axis here
 
 **No number in the paper is typed by hand.** Every one is a LaTeX macro generated from the
 shipped artifacts, and every figure is drawn from them. Both regenerate in seconds without a
-GPU — that is the first thing to run:
+GPU; this is the first thing to run:
 
-### Quickstart 1 — rebuild the paper's numbers & figures WITHOUT a GPU (seconds)
+### Quickstart 1 — numbers and figures, without a GPU (seconds)
 
 ```bash
 pip install -r requirements.txt
@@ -84,7 +87,7 @@ the *composition* of the Appliances stream (`\ApplChannels` and friends) and are
 `WARNING: dataset composition skipped` and emits 837 macros, four of which the paper references
 — so `main.tex` would not compile. Every other macro comes from the shipped artifacts.
 
-### Quickstart 2 — rerun the experiments (GPU)
+### Quickstart 2 — rerunning the experiments (GPU)
 
 ```bash
 pip install -r requirements.txt
@@ -140,7 +143,7 @@ full-SGD and full-Adam, optimizer-state bytes, and the three optimizer-independe
 10-point online-LR sweep (a `{1,3}x10^k` grid from `3e-6` to `1e-1`: validation-rehearsal MSE +
 test MSE + benefit per rate, per optimizer) and the rehearsed / test-oracle readings.
 
-## Protocol notes (what makes the evaluation fair)
+## Evaluation protocol
 
 - **Leakage-free streaming**: non-overlapping windows at stride = horizon; every target is
   scored before it can enter any gradient (`online_eval.py:stream_eval`). `leakage_check.py`
@@ -175,20 +178,21 @@ Its layer is the `stage0_*` scripts and result files. The two layers share the p
 data and `online_eval.py`, and are otherwise independent: the conference layer's scripts import
 nothing from the follow-up's.
 
-### What the follow-up study finds
+### Findings
 
-It takes the third confound above — that optimizers are usually compared at one rate inherited
-from one of them — and turns it into what a deployment actually imposes. **The rate must be
-fixed once, before the site is seen**, because nobody is on the meter to tune it. Two more
+The follow-up study takes the third confound above — that optimizers are usually compared at
+one rate inherited from one of them — and turns it into what a deployment imposes. **The rate
+must be fixed once, before the site is seen**, because nobody is on the meter to tune it. Two more
 constraints follow: the optimizer may carry almost no state per parameter, and adapting must
 never end up worse than leaving the model frozen. That gives three requirements, and 23 update
-rules are measured against them on 216 cells (6 datasets x 2 backbones x 6 horizon settings
-x 3 seeds).
+rules are measured against them on 216 evaluation cells (6 datasets x 2 backbones x 6
+horizon settings x 3 seeds).
 
 **1. No existing design class satisfies all three at once.** At the shipped default
-`lr=1e-3`, the ranking has nothing to do with the tuned ranking: Adam averages **+0.75%** and
-puts **106 of 216 cells (49%) below the frozen model** (worst −46.5%) while costing 2 values of
-state per parameter; Lion averages **−20.14%** with 175 cells below and 4 divergent; SGD+m is
+`lr=1e-3`, the ranking bears no relation to the tuned ranking: Adam averages **+0.75%** and
+puts **106 of 216 cells (49%) below the frozen model** — negative skill, i.e. negative
+transfer — with a worst case of −46.5%, while costing two values of state per parameter; Lion
+averages **−20.14%** with 175 cells below and 4 divergent; SGD+m is
 safer (+11.91%, 20 below) but plateaus. Rules designed for non-stationary streams are safe and
 plateau lower; learning-rate-free rules are untuned by construction but not competitive.
 
@@ -197,48 +201,51 @@ plateau lower; learning-rate-free rules are untuned by construction but not comp
 *Adaptation benefit with no rate tuning, against adaptation state. `( )` after each name = cells
 below the frozen model. The lower panel is where adapting is worse than not adapting.*
 
-**2. One existing rule survives — and only by coincidence.** AdaFactor at its shipped
+**2. One existing rule survives, and only at a single rate.** AdaFactor at its shipped
 `lr=1e-3` reaches **+14.03%** with **0 of 216** cells below the frozen model at 0.54x the state
 of SGD+m. But over a 10-rate grid spanning 4.5 decades of plausible shipped rates it is
 deployable at **exactly 1** of them: one grid step in either direction disqualifies it. Adam is
 deployable at 1 rate, SGD+m and Lion at 0. A rule that only works at the rate it happens to
-ship with is not a solution to "the rate is fixed before the site is seen".
+ship with does not satisfy a requirement that the rate be fixed before the site is seen.
 
 **3. Capping a sign step at a fixed fraction of each parameter's own RMS meets all three, with
 zero optimizer state.** ObSign at τ=1e-3 reaches **+14.00%** at the shipped default — matching
 AdaFactor and tuned Adam (+14.16%) — with **0 of 216 cells below the frozen model** (worst
 **+0.2%**), **0 bytes** of optimizer state, and it stays deployable across **7 of the 10
-candidate rates (a 3.0-decade band)** while leaving no cell below the frozen baseline at *any*
-rate on the grid. It is the only rule measured that is simultaneously harmless everywhere and
-deployable somewhere.
+candidate rates, a 3.0-decade stable learning-rate range** — while leaving no cell below the
+frozen baseline at *any* rate on the grid. It is the only rule measured that is simultaneously
+harmless everywhere and deployable somewhere.
 
 ![learning-rate response](docs/figs/lr_response_paper.png)
 
 *(A) benefit across the rate grid; the row of counts under each curve is cells below the frozen
 model at that rate — ObSign's row is zero throughout. (B) benefit at the shared default vs. at
-the tuned rate: ObSign sits on the diagonal, i.e. the default costs it nothing.*
+the tuned rate: ObSign sits on the diagonal, so the shared default costs it no accuracy.*
 
-The mechanism is a knee, not a heuristic: the effective step is `min(lr, τ·RMS(p))`, so below
-the knee ObSign *is* signSGD and above it the rate cancels. That identity is asserted in
-`test_online_optimizers.py`, not argued in prose, and `run_stage0d.sh` sweeps τ finely enough
-to locate the no-harm crossing rather than picking a round number.
+The mechanism is a cap that binds only above a threshold, not a heuristic. The effective step
+is `min(lr, τ·RMS(p))`, and the rate at which the relative cap begins to bind — the *knee* —
+separates two regimes: below it ObSign *is* signSGD, above it the rate cancels. That identity
+is asserted in `test_online_optimizers.py` rather than argued in prose, and `run_stage0d.sh`
+sweeps τ finely enough to locate the crossing below which no cell shows negative skill, rather
+than picking a round number.
 
-### What you can reuse from this layer
+### Reusable components
 
 - **Eight rules implemented here as drop-in `torch.optim.Optimizer`s**
   (`online_optimizers.py`) — the ones with no off-the-shelf implementation: ObSign and its
   RelSign ablation, the non-stationary-stream family (obGD, Ada-obGD, dONS, AutoStep), and the
   step-size-adaptation pair (IDBD, UPGD). They carry their own assertions in
-  `test_online_optimizers.py`. These eight cover 13 of the 23 arms (ObSign is swept at six
-  values of τ); the remaining 10 come from torch, `lion-pytorch` and `pytorch-optimizer`
-  through `online_eval.py`'s factory, so the whole comparison is one dispatch table to extend.
-- **A deployability criterion you can apply to your own rule**: benefit at a rate fixed before
-  the data is seen, cells below the frozen model, and state bytes — all three at once, computed
-  by `stage0_pool.py`.
+  `test_online_optimizers.py`. These eight cover 13 of the 23 configurations
+  (ObSign is swept at six values of τ); the remaining 10 come from torch, `lion-pytorch` and
+  `pytorch-optimizer` through `online_eval.py`'s factory, so the whole comparison is a single
+  dispatch table.
+- **A deployability criterion applicable to a new rule**: benefit at a rate fixed before the
+  data is seen, cells with negative skill, and state bytes — evaluated together by
+  `stage0_pool.py`.
 - **The 216-cell sweep itself**: every rule's full 10-rate response per cell, so a new rule can
-  be placed against 23 measured ones without rerunning them.
+  be placed against the 23 measured configurations without rerunning them.
 
-### Reproducing it
+### Regeneration
 
 Same rule as the conference layer: **no number is typed by hand.** `gen_macros_stage0.py`
 regenerates all of `macros_ext.tex` from the shipped `stage0*.jsonl`, and `stage0_figs.py`
