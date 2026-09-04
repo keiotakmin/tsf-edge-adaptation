@@ -59,9 +59,6 @@ A100-measured.
   (leakage-free streaming), `warm_and_select` (validation-selected warmup) and
   `select_online_lr` (rehearsal-based online-rate selection). They apply unchanged to another
   stream.
-- **A checklist for evaluating online adaptation.** [Evaluation protocol](#evaluation-protocol)
-  states each confound, the correction, and the script that measures the effect of omitting
-  it, so a reported benefit can be audited against the choices that produced it.
 - **The sweep artifacts.** `grid.jsonl` (360 cells) and `lr_fairness.jsonl` (390 lines, each
   carrying a full 10-point online-LR sweep) are enough to re-derive our statistics or test a new
   hypothesis without a GPU. The BDG2 meter subsets are specified ex ante and shipped.
@@ -142,32 +139,6 @@ full-SGD and full-Adam, optimizer-state bytes, and the three optimizer-independe
 (5 subsets x 2 backbones x 3 seeds at H=24, L=96) for Table III. Each line carries the full
 10-point online-LR sweep (a `{1,3}x10^k` grid from `3e-6` to `1e-1`: validation-rehearsal MSE +
 test MSE + benefit per rate, per optimizer) and the rehearsed / test-oracle readings.
-
-## Evaluation protocol
-
-- **Leakage-free streaming**: non-overlapping windows at stride = horizon; every target is
-  scored before it can enter any gradient (`online_eval.py:stream_eval`). `leakage_check.py`
-  reproduces the inflation caused by the leaky stride-1 alternative.
-- **Validation-selected warmup**: the warmup budget is picked by early-stopping on a held-out
-  pre-drift validation slice (`online_eval.py:warm_and_select`), never on test data. All
-  downstream measurements share this one selection procedure.
-- **Validation-selected online LR (rehearsal)**: each strategy's online learning rate is picked
-  by *rehearsing* online adaptation on the same pre-drift validation slice
-  (`online_eval.py:select_online_lr`), never on test data. `lr_fairness.py` shows that skipping
-  this — running both optimizers at a shared default rate — reverses the SGD-vs-Adam verdict
-  (the paper's third confound).
-- **SGD means SGD with momentum.** `torch.optim.SGD`'s `momentum` is a free argument, so
-  "the torch default" does not imply momentum-free SGD, and nobody deploys the momentum-free
-  form. The paper's SGD-family arm is therefore `sgdm` (`online_eval.SGD_STRAT`). The
-  pre-migration momentum-free results are kept in the artifacts (`*_sgd*` fields,
-  `staleness_patchtst.json`, `leakage_check.json`, ...) so the retired readings stay
-  reproducible, but they are not what the paper reports.
-- **Per-update wall-clock is measured separately** (`frontier_timing.py`), not taken from the
-  evaluation stream: at batch 1 the update is launch-latency bound, so a single sequential
-  pass per strategy measures host contention and GPU warm-up rather than the optimizer. The
-  published estimator is a median over updates after a discarded warm-up prefix, minimised
-  over repeats that interleave every strategy, and it carries a sanity gate (Adam must never
-  measure faster than SGD+momentum at the same strategy).
 
 ## The follow-up study
 
