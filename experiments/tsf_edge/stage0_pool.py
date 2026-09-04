@@ -44,7 +44,8 @@ sys.path.insert(0, HERE)
 from stage0_optimizers import (load_jsonl, OUT, OUT_B, OUT_C, OUT_D, LRFAIR, STATE_MULT,
                                SHARED_LR, _restrict, sel_oracle, lr_miss_cost)
 
-# TERMINOLOGY (2026-09-03, see ieee_access/GLOSSARY.md).  The paper says TUNED rate; this
+# TERMINOLOGY (2026-09-03, and the project glossary is the canonical list).  The follow-up
+# paper says TUNED rate; this
 # module's function is still called rehearsed(), and the JSONL keys and \ExtReh* macros still
 # say "reh".  "Rehearsal" means REPLAY in continual learning -- a field this paper imports from
 # and compares against (NatSR ships a replay buffer) -- so the word had to leave the captions.
@@ -511,7 +512,7 @@ def peft_paired(which, other, base="obsign_t1e3", lr=1e-3, n_boot=4000):
 
 
 # ---------------------------------------------------------------------------------------
-# The requirement reading (added 2026-09-03 for the IEEE Access section IV).
+# The requirement reading (added 2026-09-03 for the follow-up paper's gap section).
 #
 # Sections III/IV originally read R2 off ONE shipped default (1e-3) and R3 off the negative-cell
 # count alone. Both are too weak to carry the section's proposition, and the raw data says so:

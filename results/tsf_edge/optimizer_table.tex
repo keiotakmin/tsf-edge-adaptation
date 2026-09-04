@@ -2,7 +2,7 @@
 \begin{table*}[t]
 \centering
 \footnotesize
-\caption{Every arm on the same 216 cells, under both readings of Section~\ref{sec:reqs}. \emph{state} is optimizer state per trainable parameter; adaptation memory is $4N(1+\mathit{state})$ bytes, with $N=85{,}670$ at PatchTST, $L{=}96$, $H{=}24$. \emph{Tuned} selects the online rate on the held-out pre-drift slice; \emph{at $10^{-3}$} is the same cells with no tuning at all. \emph{neg} counts cells below the static baseline, diverged ones (benefit $<-100\%$) included, though those are left out of the means and of \emph{worst}. \emph{mis1x} is the benefit lost to a one-decade error in the rate, from each arm's own optimum. $\dagger$ marks the state-axis Pareto frontier.}
+\caption{All rules on the same 216 cells, under both readings of Section~\ref{sec:reqs}. \emph{State}: optimizer state per trainable parameter; adaptation memory is $4N(1+s)$ bytes with $N=85{,}670$ (PatchTST, $L{=}96$, $H{=}24$). \emph{Tuned}: rate selected on the held-out pre-drift slice. \emph{At $10^{-3}$}: the same cells at the shared default with no selection. \emph{neg}: cells below the frozen baseline, including diverged ones (benefit $<-100\%$), which are excluded from means and \emph{worst}. \emph{mis1x}: benefit lost to a one-decade rate error from each arm's own optimum. $\dagger$ marks the state-axis Pareto frontier. A tuned value below its own untuned value is not an error: selection lands below the test optimum roughly twice as often as above it, and a rule whose high rates are harmless loses benefit by being tuned down rather than shipped at the higher fixed rate (Section~\ref{sec:tuningpass}).}
 \label{tab:optimizers}
 \begin{tabular}{llrrrrrr}
 \toprule

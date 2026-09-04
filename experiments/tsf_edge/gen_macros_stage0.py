@@ -3,11 +3,12 @@
 Same rule as gen_macros.py -- no number in the extension paper is ever hand-typed (CLAUDE.md)
 -- but a SEPARATE generator writing a SEPARATE file, for two reasons:
 
-  1. gen_macros.py is published to the public repro repo, and sync_repro.sh hard-fails if the
-     string "stage0" appears in any published .py (Stage-0 is withheld pending the extension
-     decision). Putting these macros in gen_macros.py would break the sync guard.
-  2. results/tsf_edge/macros.tex must stay byte-identical to the public repo's copy, which is
-     the property the BigData submission state is tracked by.
+  1. results/tsf_edge/macros.tex must stay byte-identical to the public repo's copy, which is
+     the property the conference submission state is tracked by. A generator that wrote both
+     files could not give that guarantee.
+  2. the two papers are read and revised on different clocks, so their numbers are regenerated
+     on different clocks too; one generator per paper keeps a rerun of one from touching the
+     other.
 
 The extension paper does \\input{macros.tex} AND \\input{macros_ext.tex}; names here are
 prefixed Ext... so the two namespaces can never collide.
@@ -20,7 +21,7 @@ Regenerate: .venv/bin/python experiments/tsf_edge/gen_macros_stage0.py
 TERMINOLOGY: the paper says TUNED rate where these macros say Reh (\\ExtReh*).  "Rehearsal"
 means replay in continual learning, a field this paper compares against, so the word left the
 captions on 2026-09-03 -- but the 112 macro names did NOT change.  A macro rename that leaves
-a value behind is the failure this project has already had once; see ieee_access/GLOSSARY.md.
+a value behind is the failure this project has already had once; the project glossary records it.
 """
 from __future__ import annotations
 import datetime, os, re, sys
@@ -35,7 +36,8 @@ sys.path.insert(0, HERE)
 import stage0_pool as pool
 from stage0_optimizers import LR_GRID_BY_OPT, _surface, sel_oracle
 # The top of the shared grid BEFORE the P0-1 fill-in of 2026-08-31 (it ran 3e-6..1e-2;
-# 3e-2 and 1e-1 were added by that pass).  See EXTENSION_DIFF.md section P0-1.
+# 3e-2 and 1e-1 were added by that pass; the fill-in runner and its merge script are
+# run_stage0_fillin.sh and merge_stage0_fillin.py.
 PREFILL_LR_HI = 1e-2
 from online_eval import LR_GRID
 
@@ -102,6 +104,13 @@ def lrtex(x):
     return f"${mant}10^{{{e}}}$"
 
 
+def thousands(x):
+    """A parameter count with LaTeX thousands separators.  optimizer_table.tex has always
+    printed $N=85{,}670$ in its caption; the body printed the same number as 85670 from a
+    macro, so the same quantity appeared two ways on facing pages."""
+    return f"{int(round(x)):,}".replace(",", r"{,}")
+
+
 def s2(x): return f"{round(x, 2) + 0.0:+.2f}"          # signed, avoids "-0.00"
 def s1(x): return f"{round(x, 1) + 0.0:+.1f}"
 def f2(x): return f"{x:.2f}"
@@ -136,6 +145,7 @@ emit("ExtCells", str(len(cells)))
 emit("ExtSeeds", str(len({k[4] for k in (c[0] for c in cells)})))
 emit("ExtDatasets", str(len({k[0] for k in (c[0] for c in cells)})))
 emit("ExtShapes", str(len({(k[2], k[3]) for k in (c[0] for c in cells)})))
+emit("ExtBackbones", str(len({k[1] for k in (c[0] for c in cells)})))
 emit("ExtArms", str(len(LRFUL) + len(pool.LRFREE_ARMS)))
 # The population for any claim quantified over the shared LR grid.  The LR-free rules are
 # read at their own defaults and were never swept, so \ExtArms is the wrong denominator
@@ -264,7 +274,7 @@ for which, tag in (("calib", "Calib"), ("head", "Head")):
     emit_group("ExtPeft" + tag, st,
                [("Mean", s2, "mean"), ("Lo", s2, "lo"), ("Hi", s2, "hi"), ("Neg", str, "neg"),
                 ("MisOne", f2, "mis1x"), ("FixMean", s2, "fixed_mean"),
-                ("FixNeg", str, "fixed_neg"), ("Params", lambda v: f"{v:.0f}", "n_params"),
+                ("FixNeg", str, "fixed_neg"), ("Params", thousands, "n_params"),
                 ("MemBytes", lambda v: f"{v:.0f}", "mem_bytes"),
                 # kB as well as bytes: section VI-B compares these against on-chip SRAM
                 # budgets, which are quoted in kB, and "203224 bytes against 262144" is a
@@ -297,7 +307,7 @@ emit("ExtRefConfigL", str(_L))
 emit("ExtRefConfigH", str(_H))
 _np = [r["res_obsign_t1e3"]["n_adapt_params"] for _, r in cells
        if "res_obsign_t1e3" in r and (r["backbone"], r["L"], r["H"]) == (_bb, _L, _H)]
-emit("ExtRefConfigParams", f"{np.median(_np):.0f}")
+emit("ExtRefConfigParams", thousands(np.median(_np)))
 for _a in ("obsign_t1e3", "adafactor", "sgdm", "adam"):
     _m = pool._measured_mem(_a, cells)
     emit("ExtFullMemKB" + ARM_TEX[_a], f"{_m / 1024:.0f}")
@@ -324,7 +334,20 @@ for _a in _TUNE_ARMS:
     _u, _c = np.unique(_sels, return_counts=True)
     _best = max(((_lr, pool.fixed([_a], _lr, cells, ref).get(_a, {}).get("mean", np.nan))
                  for _lr in LR_GRID), key=lambda t: (-1e9 if t[1] != t[1] else t[1]))
+    # WHICH WAY the selection errs. A tuned column below its own untuned one looks like a bug
+    # unless the reader is told that validation selects on the PRE-DRIFT slice and picks low:
+    # for every arm here the selected rate sits below the cell's own test optimum about twice
+    # as often as above it. For a rule whose high rates are harmless that costs benefit; for
+    # signSGD or Adam the same conservatism is what saves them, which is why only the guarded
+    # rules show the inversion.
+    _lo = sum(1 for _k, _r in cells
+              if (_sw := pool._sweep(_a, _r, ref[_k])) and sel_oracle(_sw)[0] < sel_oracle(_sw)[2])
+    _hi = sum(1 for _k, _r in cells
+              if (_sw := pool._sweep(_a, _r, ref[_k])) and sel_oracle(_sw)[0] > sel_oracle(_sw)[2])
+    _n = sum(1 for _k, _r in cells if pool._sweep(_a, _r, ref[_k]))
     _stem = "ExtTunePass" + ARM_TEX[_a]
+    emit(_stem + "SelBelowOracle", f"{100 * _lo / _n:.0f}")
+    emit(_stem + "SelAboveOracle", f"{100 * _hi / _n:.0f}")
     emit(_stem + "BestSingleLr", lrtex(_best[0]))
     emit(_stem + "BestSingleMean", s2(_best[1]))
     emit(_stem + "TunedMinusBestSingle", s2(reh[_a]["mean"] - _best[1]))
@@ -361,7 +384,7 @@ if tab:
     emit("ExtPetsaWins", str(int((P > O).sum())))          # cells where PETSA wins
     emit("ExtPetsaOursWins", str(int((O > P).sum())))      # cells where ours wins
     emit("ExtPetsaParams", f"{n_par:.0f}")
-    emit("ExtPetsaOursParams", f"{o_par:.0f}")
+    emit("ExtPetsaOursParams", thousands(o_par))
     emit("ExtPetsaBenefitRatio", f"{100 * P.mean() / O.mean():.0f}")
 
 section("The requirement reading (section IV). R3 is TWO-part -- no-harm (neg 0) AND "

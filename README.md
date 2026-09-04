@@ -9,24 +9,25 @@ paper is built from** (including the 360-cell optimizer grid `grid.jsonl` and th
 learning-rate grid `lr_fairness.jsonl`), and (c) the single-source pipeline that turns those
 artifacts into every number and figure in the paper.
 
-It also carries the harness and artifacts of the **extended study** submitted to IEEE Access,
-*"Zero-State, Tuning-Free Online Adaptation for On-Device Energy Time-Series Forecasting"*,
-which measures twenty update rules on the same 216-cell grid and proposes a stateless one. That
-layer is the `stage0_*` scripts and result files; see [Extension study](#extension-study-ieee-access)
-below. The two layers share the protocol, the data and `online_eval.py`, and are otherwise
-independent: the conference layer's scripts import nothing from the extension.
+It also carries the harness and artifacts of a **follow-up study** that measures 23 update
+rules on the same 216-cell grid and proposes a stateless one. That study is under review; its
+paper is not public yet, so this repository describes what the code does rather than what the
+paper says, and the citation will be added once the venue is decided. Its layer is the
+`stage0_*` scripts and result files; see [The follow-up study](#the-follow-up-study) below. The
+two layers share the protocol, the data and `online_eval.py`, and are otherwise independent:
+the conference layer's scripts import nothing from the follow-up's.
 
 ## Layout
 
 ```
 experiments/tsf_edge/    the harness (see "Reproduction map" below)
     data/                datasets: bdg2*.csv shipped; ETT + Appliances via get_data.sh
-    online_optimizers.py the extension study's update rules, ObSign among them
-    stage0_*.py          the extension study's harness, pooling and tables
-results/tsf_edge/        both papers' result artifacts (data files + generated macros/figures)
+    online_optimizers.py the follow-up study's update rules, ObSign among them
+    stage0_*.py          the follow-up study's harness, pooling and tables
+results/tsf_edge/        both studies' result artifacts (data files + generated macros/figures)
     macros.tex           conference paper: every number, generated
-    macros_ext.tex       extension paper: every number, generated (\Ext... namespace)
-    stage0*_optimizers*.jsonl   the extension study's cells
+    macros_ext.tex       follow-up study: every number, generated (\Ext... namespace)
+    stage0*_optimizers*.jsonl   the follow-up study's cells
 ```
 
 ## Quickstart 1 — rebuild the paper's numbers & figures WITHOUT a GPU (seconds)
@@ -89,14 +90,16 @@ full-SGD and full-Adam, optimizer-state bytes, and the three optimizer-independe
 10-point online-LR sweep (a `{1,3}x10^k` grid from `3e-6` to `1e-1`: validation-rehearsal MSE +
 test MSE + benefit per rate, per optimizer) and the rehearsed / test-oracle readings.
 
-## Extension study (IEEE Access)
+## The follow-up study
 
-*"Zero-State, Tuning-Free Online Adaptation for On-Device Energy Time-Series Forecasting"* takes
-the third confound of the conference paper — that comparisons across optimizers are usually run
-at one rate inherited from one of them — and turns it into a requirement a deployment imposes:
-the rate has to be fixed once, before the site is seen. Together with a bound on optimizer
+**Status: under review; the paper is not public and is not named here.** What follows describes
+the code and the artifacts in this repository, which stand on their own.
+
+The follow-up takes the third confound of the conference paper — that comparisons across
+optimizers are usually run at one rate inherited from one of them — and turns it into a
+requirement a deployment imposes: the rate has to be fixed once, before the site is seen. Together with a bound on optimizer
 state and the requirement that adapting not be worse than leaving the model frozen, that gives
-three requirements, and the study measures twenty update rules against them on the same 216
+three requirements, and the study measures 23 update rules against them on the same 216
 cells. No existing design class meets all three; ObSign, which caps a sign step at a fixed
 fraction of each parameter's own RMS, does, with no optimizer state.
 
@@ -124,7 +127,7 @@ python experiments/tsf_edge/test_online_optimizers.py        # the update rules'
 | Table II (deployability at every shipped rate) | `stage0_figs.requirement_table()` | `requirement_table.tex` | seconds |
 | Table III (all rules, both readings) | `stage0_figs.optimizer_table()` | `optimizer_table.tex` | seconds |
 | Figs. 1-3 | `stage0_figs.{requirement_gap_paper,knee_paper,lr_response_paper}()` | `*_paper.pdf` | seconds |
-| every number in the extension paper | `gen_macros_stage0.py` | `macros_ext.tex` | seconds, no GPU |
+| every number in the follow-up study | `gen_macros_stage0.py` | `macros_ext.tex` | seconds, no GPU |
 | the palette's colour-blind separation | `check_palette.py` | printed report | seconds |
 
 Runtimes are the measured wall-clock of the runs the paper reports, on one A100; `—` = not
@@ -182,6 +185,8 @@ against the checksums of the exact files used in the paper.
 
 Code: MIT (see `LICENSE`). Datasets keep their original licenses (see the data README).
 
-Citation: this repository accompanies two papers under review (the conference paper above and
-the IEEE Access extension); the citation entries and the paper links will be added once the
-venues are decided. Until then, please cite the repository URL and the commit hash you used.
+Citation: this repository accompanies the conference paper named above (under review, IEEE
+BigData 2026; preprint: [arXiv:2609.01126](https://arxiv.org/abs/2609.01126)) and a follow-up
+study whose paper is also under review and not yet public. Citation entries and links will be
+added as the venues are decided. Until then, please cite the repository URL and the commit hash
+you used.

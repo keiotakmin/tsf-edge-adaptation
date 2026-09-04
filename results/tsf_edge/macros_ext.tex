@@ -9,6 +9,7 @@
 \newcommand{\ExtSeeds}{3}
 \newcommand{\ExtDatasets}{6}
 \newcommand{\ExtShapes}{6}
+\newcommand{\ExtBackbones}{2}
 \newcommand{\ExtArms}{23}
 \newcommand{\ExtGridArms}{19}
 \newcommand{\ExtSharedLrPoints}{10}
@@ -423,7 +424,7 @@
 \newcommand{\ExtPeftCalibAdamMisOne}{24.11}
 \newcommand{\ExtPeftCalibAdamFixMean}{+9.51}
 \newcommand{\ExtPeftCalibAdamFixNeg}{7}
-\newcommand{\ExtPeftCalibAdamParams}{16934}
+\newcommand{\ExtPeftCalibAdamParams}{16{,}934}
 \newcommand{\ExtPeftCalibAdamMemBytes}{203224}
 \newcommand{\ExtPeftCalibAdamMemKB}{198}
 \newcommand{\ExtPeftCalibSgdmMean}{+16.62}
@@ -433,7 +434,7 @@
 \newcommand{\ExtPeftCalibSgdmMisOne}{37.31}
 \newcommand{\ExtPeftCalibSgdmFixMean}{+16.27}
 \newcommand{\ExtPeftCalibSgdmFixNeg}{0}
-\newcommand{\ExtPeftCalibSgdmParams}{16934}
+\newcommand{\ExtPeftCalibSgdmParams}{16{,}934}
 \newcommand{\ExtPeftCalibSgdmMemBytes}{135472}
 \newcommand{\ExtPeftCalibSgdmMemKB}{132}
 \newcommand{\ExtPeftCalibAdafactorMean}{+18.93}
@@ -443,7 +444,7 @@
 \newcommand{\ExtPeftCalibAdafactorMisOne}{14.74}
 \newcommand{\ExtPeftCalibAdafactorFixMean}{+15.09}
 \newcommand{\ExtPeftCalibAdafactorFixNeg}{0}
-\newcommand{\ExtPeftCalibAdafactorParams}{16934}
+\newcommand{\ExtPeftCalibAdafactorParams}{16{,}934}
 \newcommand{\ExtPeftCalibAdafactorMemBytes}{104668}
 \newcommand{\ExtPeftCalibAdafactorMemKB}{102}
 \newcommand{\ExtPeftCalibObsignTauOneEThreeMean}{+15.27}
@@ -453,7 +454,7 @@
 \newcommand{\ExtPeftCalibObsignTauOneEThreeMisOne}{0.56}
 \newcommand{\ExtPeftCalibObsignTauOneEThreeFixMean}{+15.29}
 \newcommand{\ExtPeftCalibObsignTauOneEThreeFixNeg}{0}
-\newcommand{\ExtPeftCalibObsignTauOneEThreeParams}{16934}
+\newcommand{\ExtPeftCalibObsignTauOneEThreeParams}{16{,}934}
 \newcommand{\ExtPeftCalibObsignTauOneEThreeMemBytes}{67736}
 \newcommand{\ExtPeftCalibObsignTauOneEThreeMemKB}{66}
 \newcommand{\ExtPeftCalibPairedSgdmMean}{+0.97}
@@ -481,7 +482,7 @@
 \newcommand{\ExtPeftHeadAdamMisOne}{21.72}
 \newcommand{\ExtPeftHeadAdamFixMean}{+8.20}
 \newcommand{\ExtPeftHeadAdamFixNeg}{8}
-\newcommand{\ExtPeftHeadAdamParams}{16920}
+\newcommand{\ExtPeftHeadAdamParams}{16{,}920}
 \newcommand{\ExtPeftHeadAdamMemBytes}{203048}
 \newcommand{\ExtPeftHeadAdamMemKB}{198}
 \newcommand{\ExtPeftHeadSgdmMean}{+15.84}
@@ -491,7 +492,7 @@
 \newcommand{\ExtPeftHeadSgdmMisOne}{19.49}
 \newcommand{\ExtPeftHeadSgdmFixMean}{+14.86}
 \newcommand{\ExtPeftHeadSgdmFixNeg}{0}
-\newcommand{\ExtPeftHeadSgdmParams}{16920}
+\newcommand{\ExtPeftHeadSgdmParams}{16{,}920}
 \newcommand{\ExtPeftHeadSgdmMemBytes}{135360}
 \newcommand{\ExtPeftHeadSgdmMemKB}{132}
 \newcommand{\ExtPeftHeadAdafactorMean}{+16.21}
@@ -501,7 +502,7 @@
 \newcommand{\ExtPeftHeadAdafactorMisOne}{9.57}
 \newcommand{\ExtPeftHeadAdafactorFixMean}{+13.55}
 \newcommand{\ExtPeftHeadAdafactorFixNeg}{0}
-\newcommand{\ExtPeftHeadAdafactorParams}{16920}
+\newcommand{\ExtPeftHeadAdafactorParams}{16{,}920}
 \newcommand{\ExtPeftHeadAdafactorMemBytes}{104528}
 \newcommand{\ExtPeftHeadAdafactorMemKB}{102}
 \newcommand{\ExtPeftHeadObsignTauOneEThreeMean}{+14.38}
@@ -511,7 +512,7 @@
 \newcommand{\ExtPeftHeadObsignTauOneEThreeMisOne}{4.76}
 \newcommand{\ExtPeftHeadObsignTauOneEThreeFixMean}{+14.38}
 \newcommand{\ExtPeftHeadObsignTauOneEThreeFixNeg}{0}
-\newcommand{\ExtPeftHeadObsignTauOneEThreeParams}{16920}
+\newcommand{\ExtPeftHeadObsignTauOneEThreeParams}{16{,}920}
 \newcommand{\ExtPeftHeadObsignTauOneEThreeMemBytes}{67680}
 \newcommand{\ExtPeftHeadObsignTauOneEThreeMemKB}{66}
 \newcommand{\ExtPeftHeadPairedSgdmMean}{+0.48}
@@ -535,13 +536,15 @@
 % ---- Adaptation memory in kB at the reference configuration, for section VI-B (what the state multiplier means against a real memory budget). The multiplier is dimensionless and every device budget is in bytes, so the section needs both. REF_CONFIG is one configuration by necessity -- the trainable-parameter count runs from 4,656 to 210,964 over the grid, so a byte figure pooled over all cells would describe no deployment that exists (stage0_pool.REF_CONFIG). Only the SCALE depends on that choice: memory is 4N(1+s) with N shared by every arm. ----
 \newcommand{\ExtRefConfigL}{96}
 \newcommand{\ExtRefConfigH}{24}
-\newcommand{\ExtRefConfigParams}{85670}
+\newcommand{\ExtRefConfigParams}{85{,}670}
 \newcommand{\ExtFullMemKBObsignTauOneEThree}{335}
 \newcommand{\ExtFullMemKBAdafactor}{517}
 \newcommand{\ExtFullMemKBSgdm}{669}
 \newcommand{\ExtFullMemKBAdam}{1004}
 
 % ---- What a tuning pass actually buys (section VI-E). The tuned reading selects each rule's rate per cell on a held-out pre-drift slice, and it beats the untuned reading -- but not because per-site selection finds something a fixed rate cannot. For every rule below there is a SINGLE rate on the shared grid whose untuned reading matches or beats that rule's tuned reading. That rate is chosen with hindsight over the whole 216-cell population, which is not a selection a deployment can make, and it differs from rule to rule -- so what the pass buys is knowing WHICH rate, which is exactly what R2 says a deployment does not know. The spread of the per-cell selections is the same point from the other side: no single rate is the selected one in most cells. ----
+\newcommand{\ExtTunePassLionSelBelowOracle}{40}
+\newcommand{\ExtTunePassLionSelAboveOracle}{23}
 \newcommand{\ExtTunePassLionBestSingleLr}{$3{\cdot}10^{-5}$}
 \newcommand{\ExtTunePassLionBestSingleMean}{+14.56}
 \newcommand{\ExtTunePassLionTunedMinusBestSingle}{+0.08}
@@ -549,6 +552,8 @@
 \newcommand{\ExtTunePassLionSelSpreadDecades}{2.0}
 \newcommand{\ExtTunePassLionSelModeLr}{$3{\cdot}10^{-5}$}
 \newcommand{\ExtTunePassLionSelModeShare}{31}
+\newcommand{\ExtTunePassAdamSelBelowOracle}{44}
+\newcommand{\ExtTunePassAdamSelAboveOracle}{16}
 \newcommand{\ExtTunePassAdamBestSingleLr}{$10^{-4}$}
 \newcommand{\ExtTunePassAdamBestSingleMean}{+14.93}
 \newcommand{\ExtTunePassAdamTunedMinusBestSingle}{-0.77}
@@ -556,6 +561,8 @@
 \newcommand{\ExtTunePassAdamSelSpreadDecades}{3.0}
 \newcommand{\ExtTunePassAdamSelModeLr}{$10^{-4}$}
 \newcommand{\ExtTunePassAdamSelModeShare}{41}
+\newcommand{\ExtTunePassSignsgdSelBelowOracle}{38}
+\newcommand{\ExtTunePassSignsgdSelAboveOracle}{15}
 \newcommand{\ExtTunePassSignsgdBestSingleLr}{$10^{-4}$}
 \newcommand{\ExtTunePassSignsgdBestSingleMean}{+14.70}
 \newcommand{\ExtTunePassSignsgdTunedMinusBestSingle}{-0.63}
@@ -563,6 +570,8 @@
 \newcommand{\ExtTunePassSignsgdSelSpreadDecades}{2.5}
 \newcommand{\ExtTunePassSignsgdSelModeLr}{$10^{-4}$}
 \newcommand{\ExtTunePassSignsgdSelModeShare}{40}
+\newcommand{\ExtTunePassAdafactorSelBelowOracle}{33}
+\newcommand{\ExtTunePassAdafactorSelAboveOracle}{24}
 \newcommand{\ExtTunePassAdafactorBestSingleLr}{$3{\cdot}10^{-3}$}
 \newcommand{\ExtTunePassAdafactorBestSingleMean}{+14.11}
 \newcommand{\ExtTunePassAdafactorTunedMinusBestSingle}{-0.31}
@@ -570,6 +579,8 @@
 \newcommand{\ExtTunePassAdafactorSelSpreadDecades}{2.5}
 \newcommand{\ExtTunePassAdafactorSelModeLr}{$10^{-3}$}
 \newcommand{\ExtTunePassAdafactorSelModeShare}{38}
+\newcommand{\ExtTunePassSgdmSelBelowOracle}{49}
+\newcommand{\ExtTunePassSgdmSelAboveOracle}{23}
 \newcommand{\ExtTunePassSgdmBestSingleLr}{$3{\cdot}10^{-4}$}
 \newcommand{\ExtTunePassSgdmBestSingleMean}{+11.98}
 \newcommand{\ExtTunePassSgdmTunedMinusBestSingle}{-0.15}
@@ -577,6 +588,8 @@
 \newcommand{\ExtTunePassSgdmSelSpreadDecades}{4.0}
 \newcommand{\ExtTunePassSgdmSelModeLr}{$10^{-3}$}
 \newcommand{\ExtTunePassSgdmSelModeShare}{24}
+\newcommand{\ExtTunePassObsignTauOneEThreeSelBelowOracle}{31}
+\newcommand{\ExtTunePassObsignTauOneEThreeSelAboveOracle}{16}
 \newcommand{\ExtTunePassObsignTauOneEThreeBestSingleLr}{$3{\cdot}10^{-3}$}
 \newcommand{\ExtTunePassObsignTauOneEThreeBestSingleMean}{+14.00}
 \newcommand{\ExtTunePassObsignTauOneEThreeTunedMinusBestSingle}{-0.53}
@@ -595,7 +608,7 @@
 \newcommand{\ExtPetsaWins}{0}
 \newcommand{\ExtPetsaOursWins}{18}
 \newcommand{\ExtPetsaParams}{793}
-\newcommand{\ExtPetsaOursParams}{16934}
+\newcommand{\ExtPetsaOursParams}{16{,}934}
 \newcommand{\ExtPetsaBenefitRatio}{57}
 
 % ---- The requirement reading (section IV). R3 is TWO-part -- no-harm (neg 0) AND competitive (untuned 95% CI overlapping the best TUNED arm) -- because the no-harm half alone is passed by ten arms including plain SGD, which would make section IV's proposition false. R2 is read over the WHOLE shared grid rather than at one borrowed default: the band is how many decades of shipped default keep the arm deployable. NOTE on the relsign row: RelSign has no lr (its lr IS tau), so its band is a sensitivity to its OWN hyper-parameter, not to a shipped rate -- which is the point of the ablation, not a category error. ----
@@ -950,4 +963,4 @@
 \newcommand{\ExtObsignMinusSignsgdMean}{+0.06}
 \newcommand{\ExtFixAdamNegPct}{49}
 \newcommand{\ExtFixSgdmNegPct}{9}
-\newcommand{\ExtMacrosDate}{2026-09-04}
+\newcommand{\ExtMacrosDate}{2026-09-05}
