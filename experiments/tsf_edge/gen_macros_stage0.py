@@ -422,7 +422,7 @@ _gaps = {a: pool.paired(pool.COMPETITIVE_REF, a, reading="fixed", lr=1e-3, cells
 _pass = [g for g in _gaps.values() if g.get("n") and g["hi"] < pool.COMPETITIVE_MARGIN]
 _fail = [g for g in _gaps.values() if g.get("n") and g["hi"] >= pool.COMPETITIVE_MARGIN]
 emit("ExtGapPassMaxHi", f"{max(g['hi'] for g in _pass):.2f}")
-emit("ExtGapFailMinLo", f"{min(g['lo'] for g in _fail):.2f}")
+emit("ExtGapFailMinHi", f"{min(g['hi'] for g in _fail):.2f}")
 for _a in ("adafactor", "obsign_t1e3", "autostep", "sgdm", "sgd", "obgd", "lion", "adam"):
     _g = _gaps[_a]
     emit("ExtGap" + ARM_TEX[_a] + "Mean", s2(_g["mean"]))
@@ -448,8 +448,14 @@ req = pool.requirement_check(cells, ref)
 emit("ExtReqWeakCount", str(len(req["weak"])))
 emit("ExtReqStrongCount", str(len(req["strong"])))
 emit("ExtReqStrongArms", ", ".join(ARM_LABEL[a] for a in req["strong"]))
-_zero_strong = [a for a in req["strong"] if req["stats"][a]["state"] < 0.005
-                and a not in ("obsign_t1e3", "obsign_t3e3", "obsign", "relsign")]
+# OURS, excluded by construction rather than by a list of names: every ObSign arm (whatever
+# tau it was run at) plus its ablation. A hand-written list here would have silently counted
+# the three tau arms added on 2026-09-04 as EXISTING methods -- they all fail R3(a) at the
+# shared default, so the count is 0 either way, but only by luck.
+from stage0_figs import TAU_OF as _TAU_ARMS     # one definition of "which arm is which tau"
+_ours = set(_TAU_ARMS) | {"relsign"}
+_zero_strong = [a for a in req["strong"]
+                if req["stats"][a]["state"] < 0.005 and a not in _ours]
 emit("ExtReqStrongZeroStateExistingCount", str(len(_zero_strong)))
 _free = pool.lrfree(cells=cells, ref=ref)
 _fb = req["ref"]

@@ -3,15 +3,14 @@
 % Extension-paper macros only; the BigData macros live in macros.tex and the two
 % namespaces are disjoint (everything here starts with \Ext).
 % Percents carry an explicit +/- sign; values are bare numbers (append \% in prose).
-% WARNING: Stage-0d arms not yet complete over all cells, so they are excluded from every table: obsign_t1p5e3, obsign_t2e3, obsign_t5e3
 
 % ---- Extension study: grid size and protocol ----
 \newcommand{\ExtCells}{216}
 \newcommand{\ExtSeeds}{3}
 \newcommand{\ExtDatasets}{6}
 \newcommand{\ExtShapes}{6}
-\newcommand{\ExtArms}{20}
-\newcommand{\ExtGridArms}{16}
+\newcommand{\ExtArms}{23}
+\newcommand{\ExtGridArms}{19}
 \newcommand{\ExtSharedLrPoints}{10}
 \newcommand{\ExtSharedLrLo}{$3{\cdot}10^{-6}$}
 \newcommand{\ExtSharedLrHi}{$10^{-1}$}
@@ -110,6 +109,13 @@
 \newcommand{\ExtRehObsignTauOneETwoWorst}{-0.3}
 \newcommand{\ExtRehObsignTauOneETwoMisOne}{5.14}
 \newcommand{\ExtRehObsignTauOneETwoState}{0.00}
+\newcommand{\ExtRehObsignTauFiveEThreeMean}{+14.03}
+\newcommand{\ExtRehObsignTauFiveEThreeLo}{+12.13}
+\newcommand{\ExtRehObsignTauFiveEThreeHi}{+16.10}
+\newcommand{\ExtRehObsignTauFiveEThreeNeg}{3}
+\newcommand{\ExtRehObsignTauFiveEThreeWorst}{-8.0}
+\newcommand{\ExtRehObsignTauFiveEThreeMisOne}{3.27}
+\newcommand{\ExtRehObsignTauFiveEThreeState}{0.00}
 \newcommand{\ExtRehObsignTauThreeEThreeMean}{+14.12}
 \newcommand{\ExtRehObsignTauThreeEThreeLo}{+12.22}
 \newcommand{\ExtRehObsignTauThreeEThreeHi}{+16.21}
@@ -117,6 +123,20 @@
 \newcommand{\ExtRehObsignTauThreeEThreeWorst}{-4.6}
 \newcommand{\ExtRehObsignTauThreeEThreeMisOne}{2.34}
 \newcommand{\ExtRehObsignTauThreeEThreeState}{0.00}
+\newcommand{\ExtRehObsignTauTwoEThreeMean}{+14.07}
+\newcommand{\ExtRehObsignTauTwoEThreeLo}{+12.18}
+\newcommand{\ExtRehObsignTauTwoEThreeHi}{+16.12}
+\newcommand{\ExtRehObsignTauTwoEThreeNeg}{1}
+\newcommand{\ExtRehObsignTauTwoEThreeWorst}{-0.7}
+\newcommand{\ExtRehObsignTauTwoEThreeMisOne}{1.80}
+\newcommand{\ExtRehObsignTauTwoEThreeState}{0.00}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeMean}{+13.88}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeLo}{+12.03}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeHi}{+15.89}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeNeg}{1}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeWorst}{-0.2}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeMisOne}{1.10}
+\newcommand{\ExtRehObsignTauOnePointFiveEThreeState}{0.00}
 \newcommand{\ExtRehObsignTauOneEThreeMean}{+13.48}
 \newcommand{\ExtRehObsignTauOneEThreeLo}{+11.72}
 \newcommand{\ExtRehObsignTauOneEThreeHi}{+15.44}
@@ -211,12 +231,30 @@
 \newcommand{\ExtFixObsignTauOneETwoWorst}{-42.2}
 \newcommand{\ExtFixObsignTauOneETwoDiv}{0}
 \newcommand{\ExtFixObsignTauOneETwoState}{0.00}
+\newcommand{\ExtFixObsignTauFiveEThreeMean}{+12.09}
+\newcommand{\ExtFixObsignTauFiveEThreeMedian}{+6.64}
+\newcommand{\ExtFixObsignTauFiveEThreeNeg}{26}
+\newcommand{\ExtFixObsignTauFiveEThreeWorst}{-16.6}
+\newcommand{\ExtFixObsignTauFiveEThreeDiv}{0}
+\newcommand{\ExtFixObsignTauFiveEThreeState}{0.00}
 \newcommand{\ExtFixObsignTauThreeEThreeMean}{+13.99}
 \newcommand{\ExtFixObsignTauThreeEThreeMedian}{+8.21}
 \newcommand{\ExtFixObsignTauThreeEThreeNeg}{10}
 \newcommand{\ExtFixObsignTauThreeEThreeWorst}{-5.0}
 \newcommand{\ExtFixObsignTauThreeEThreeDiv}{0}
 \newcommand{\ExtFixObsignTauThreeEThreeState}{0.00}
+\newcommand{\ExtFixObsignTauTwoEThreeMean}{+14.44}
+\newcommand{\ExtFixObsignTauTwoEThreeMedian}{+8.82}
+\newcommand{\ExtFixObsignTauTwoEThreeNeg}{3}
+\newcommand{\ExtFixObsignTauTwoEThreeWorst}{-0.7}
+\newcommand{\ExtFixObsignTauTwoEThreeDiv}{0}
+\newcommand{\ExtFixObsignTauTwoEThreeState}{0.00}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeMean}{+14.41}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeMedian}{+9.01}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeNeg}{1}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeWorst}{-0.2}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeDiv}{0}
+\newcommand{\ExtFixObsignTauOnePointFiveEThreeState}{0.00}
 \newcommand{\ExtFixObsignTauOneEThreeMean}{+14.00}
 \newcommand{\ExtFixObsignTauOneEThreeMedian}{+8.87}
 \newcommand{\ExtFixObsignTauOneEThreeNeg}{0}
@@ -292,6 +330,21 @@
 \newcommand{\ExtBracketRelsignOnEdgeBefore}{19}
 \newcommand{\ExtBracketRelsignAtTop}{0}
 \newcommand{\ExtBracketRelsignRates}{10}
+\newcommand{\ExtBracketObsignTauOnePointFiveEThreeCells}{216}
+\newcommand{\ExtBracketObsignTauOnePointFiveEThreeOnEdge}{0}
+\newcommand{\ExtBracketObsignTauOnePointFiveEThreeOnEdgeBefore}{0}
+\newcommand{\ExtBracketObsignTauOnePointFiveEThreeAtTop}{0}
+\newcommand{\ExtBracketObsignTauOnePointFiveEThreeRates}{10}
+\newcommand{\ExtBracketObsignTauTwoEThreeCells}{216}
+\newcommand{\ExtBracketObsignTauTwoEThreeOnEdge}{0}
+\newcommand{\ExtBracketObsignTauTwoEThreeOnEdgeBefore}{0}
+\newcommand{\ExtBracketObsignTauTwoEThreeAtTop}{0}
+\newcommand{\ExtBracketObsignTauTwoEThreeRates}{10}
+\newcommand{\ExtBracketObsignTauFiveEThreeCells}{216}
+\newcommand{\ExtBracketObsignTauFiveEThreeOnEdge}{0}
+\newcommand{\ExtBracketObsignTauFiveEThreeOnEdgeBefore}{7}
+\newcommand{\ExtBracketObsignTauFiveEThreeAtTop}{0}
+\newcommand{\ExtBracketObsignTauFiveEThreeRates}{10}
 
 % ---- P0-2 seed robustness: the nine headline arms re-read at 5 seeds (360 cells) against the 3-seed screen (216). The claim is not that the means are identical -- more cells move them slightly -- but that no pair the 3-seed reading could SEPARATE (disjoint 95% CI) comes back reversed. ----
 \newcommand{\ExtSeedRehArms}{9}
@@ -616,6 +669,18 @@
 \newcommand{\ExtDeployRelsignBandDecades}{0.0}
 \newcommand{\ExtDeployRelsignOk}{1}
 \newcommand{\ExtDeployRelsignHarmFree}{6}
+\newcommand{\ExtDeployObsignTauOnePointFiveEThreeBand}{0}
+\newcommand{\ExtDeployObsignTauOnePointFiveEThreeBandDecades}{0.0}
+\newcommand{\ExtDeployObsignTauOnePointFiveEThreeOk}{0}
+\newcommand{\ExtDeployObsignTauOnePointFiveEThreeHarmFree}{3}
+\newcommand{\ExtDeployObsignTauTwoEThreeBand}{0}
+\newcommand{\ExtDeployObsignTauTwoEThreeBandDecades}{0.0}
+\newcommand{\ExtDeployObsignTauTwoEThreeOk}{0}
+\newcommand{\ExtDeployObsignTauTwoEThreeHarmFree}{3}
+\newcommand{\ExtDeployObsignTauFiveEThreeBand}{0}
+\newcommand{\ExtDeployObsignTauFiveEThreeBandDecades}{0.0}
+\newcommand{\ExtDeployObsignTauFiveEThreeOk}{0}
+\newcommand{\ExtDeployObsignTauFiveEThreeHarmFree}{3}
 \newcommand{\ExtHarmFreeEverywhereCount}{2}
 \newcommand{\ExtHarmFreeEverywhereArms}{Ada-ObGD, ObSign $\tau{=}10^{-3}$}
 \newcommand{\ExtHarmFreeAndDeployableCount}{1}
@@ -623,7 +688,7 @@
 \newcommand{\ExtHarmFreeNeverDeployableArms}{Ada-ObGD}
 \newcommand{\ExtCompetitiveMargin}{2}
 \newcommand{\ExtGapPassMaxHi}{1.16}
-\newcommand{\ExtGapFailMinLo}{2.05}
+\newcommand{\ExtGapFailMinHi}{3.26}
 \newcommand{\ExtGapAdafactorMean}{+0.62}
 \newcommand{\ExtGapAdafactorLo}{+0.12}
 \newcommand{\ExtGapAdafactorHi}{+1.15}
@@ -805,46 +870,76 @@
 \newcommand{\ExtTauObsignTauOneETwo}{0.01}
 \newcommand{\ExtKneeObsignTauOneETwo}{$5.3{\cdot}10^{-4}$}
 \newcommand{\ExtKneeDecadesBelowDefaultObsignTauOneETwo}{0.28}
+\newcommand{\ExtTauObsignTauFiveEThree}{0.005}
+\newcommand{\ExtKneeObsignTauFiveEThree}{$2.6{\cdot}10^{-4}$}
+\newcommand{\ExtKneeDecadesBelowDefaultObsignTauFiveEThree}{0.58}
 \newcommand{\ExtTauObsignTauThreeEThree}{0.003}
 \newcommand{\ExtKneeObsignTauThreeEThree}{$1.6{\cdot}10^{-4}$}
 \newcommand{\ExtKneeDecadesBelowDefaultObsignTauThreeEThree}{0.80}
+\newcommand{\ExtTauObsignTauTwoEThree}{0.002}
+\newcommand{\ExtKneeObsignTauTwoEThree}{$1.1{\cdot}10^{-4}$}
+\newcommand{\ExtKneeDecadesBelowDefaultObsignTauTwoEThree}{0.97}
+\newcommand{\ExtTauObsignTauOnePointFiveEThree}{0.0015}
+\newcommand{\ExtKneeObsignTauOnePointFiveEThree}{$7.9{\cdot}10^{-5}$}
+\newcommand{\ExtKneeDecadesBelowDefaultObsignTauOnePointFiveEThree}{1.10}
 \newcommand{\ExtTauObsignTauOneEThree}{0.001}
 \newcommand{\ExtKneeObsignTauOneEThree}{$5.3{\cdot}10^{-5}$}
 \newcommand{\ExtKneeDecadesBelowDefaultObsignTauOneEThree}{1.28}
 
 % ---- The design rule for tau, read as a MARGIN. The rule is 'put the knee at least a decade below the rate you ship', so the quantity that decides pass or fail is the distance in decades between tau*RMS(p) and the shipped rate -- not tau itself. Stage 0c sampled that distance at three points (1.28 / 0.80 / 0.28 decades) and could only bound the crossing between the first two; Stage 0d added 1.10, 0.98 and 0.58. These macros are the sweep, ordered by margin, and the pass/fail column is deployable() at the shipped rate, so it cannot drift away from Table I. ----
-\newcommand{\ExtTauSweepCount}{3}
+\newcommand{\ExtTauSweepCount}{6}
 \newcommand{\ExtMarginObsignTauOneEThreeDecades}{1.28}
 \newcommand{\ExtMarginObsignTauOneEThreeMean}{+14.00}
 \newcommand{\ExtMarginObsignTauOneEThreeNeg}{0}
 \newcommand{\ExtMarginObsignTauOneEThreeDeployable}{yes}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeDecades}{1.10}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeMean}{+14.41}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeNeg}{1}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeDeployable}{no}
+\newcommand{\ExtMarginObsignTauTwoEThreeDecades}{0.97}
+\newcommand{\ExtMarginObsignTauTwoEThreeMean}{+14.44}
+\newcommand{\ExtMarginObsignTauTwoEThreeNeg}{3}
+\newcommand{\ExtMarginObsignTauTwoEThreeDeployable}{no}
 \newcommand{\ExtMarginObsignTauThreeEThreeDecades}{0.80}
 \newcommand{\ExtMarginObsignTauThreeEThreeMean}{+13.99}
 \newcommand{\ExtMarginObsignTauThreeEThreeNeg}{10}
 \newcommand{\ExtMarginObsignTauThreeEThreeDeployable}{no}
+\newcommand{\ExtMarginObsignTauFiveEThreeDecades}{0.58}
+\newcommand{\ExtMarginObsignTauFiveEThreeMean}{+12.09}
+\newcommand{\ExtMarginObsignTauFiveEThreeNeg}{26}
+\newcommand{\ExtMarginObsignTauFiveEThreeDeployable}{no}
 \newcommand{\ExtMarginObsignTauOneETwoDecades}{0.28}
 \newcommand{\ExtMarginObsignTauOneETwoMean}{+6.95}
 \newcommand{\ExtMarginObsignTauOneETwoNeg}{71}
 \newcommand{\ExtMarginObsignTauOneETwoDeployable}{no}
 \newcommand{\ExtMarginPassMin}{1.28}
-\newcommand{\ExtMarginFailMax}{0.80}
-\newcommand{\ExtMarginBracketWidth}{0.48}
+\newcommand{\ExtMarginFailMax}{1.10}
+\newcommand{\ExtMarginBracketWidth}{0.18}
 \newcommand{\ExtMarginObsignTauOneEThreeNegDatasets}{0}
 \newcommand{\ExtMarginObsignTauOneEThreeNegDatasetNames}{none}
 \newcommand{\ExtMarginObsignTauOneEThreeWorst}{+0.2}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeNegDatasets}{1}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeNegDatasetNames}{ETTh2}
+\newcommand{\ExtMarginObsignTauOnePointFiveEThreeWorst}{-0.2}
+\newcommand{\ExtMarginObsignTauTwoEThreeNegDatasets}{2}
+\newcommand{\ExtMarginObsignTauTwoEThreeNegDatasetNames}{ETTh2 and ETTm2}
+\newcommand{\ExtMarginObsignTauTwoEThreeWorst}{-0.7}
 \newcommand{\ExtMarginObsignTauThreeEThreeNegDatasets}{3}
 \newcommand{\ExtMarginObsignTauThreeEThreeNegDatasetNames}{ETTh1, ETTh2 and ETTm2}
 \newcommand{\ExtMarginObsignTauThreeEThreeWorst}{-5.0}
+\newcommand{\ExtMarginObsignTauFiveEThreeNegDatasets}{3}
+\newcommand{\ExtMarginObsignTauFiveEThreeNegDatasetNames}{ETTh1, ETTh2 and ETTm2}
+\newcommand{\ExtMarginObsignTauFiveEThreeWorst}{-16.6}
 \newcommand{\ExtMarginObsignTauOneETwoNegDatasets}{5}
 \newcommand{\ExtMarginObsignTauOneETwoNegDatasetNames}{ETTh1, ETTh2, ETTm1, ETTm2 and the building corpus}
 \newcommand{\ExtMarginObsignTauOneETwoWorst}{-42.2}
 
 % ---- Selecting tau on the held-out slice INSTEAD of following the design rule (stage0_pool.tau_selected). The objection the design rule invites is that a deployment with a validation slice could just select tau on it, so the paper measures that rather than leaving it as an option -- and the answer is not the flattering one: the selection reaches for the least-guarded tau, gains a little mean and loses the no-harm property that section V is selling. ----
-\newcommand{\ExtTauValSelTaus}{3}
-\newcommand{\ExtTauValSelMean}{+14.02}
-\newcommand{\ExtTauValSelNeg}{2}
-\newcommand{\ExtTauValSelWorst}{-4.6}
-\newcommand{\ExtTauValSelPickedLargest}{91}
+\newcommand{\ExtTauValSelTaus}{6}
+\newcommand{\ExtTauValSelMean}{+14.11}
+\newcommand{\ExtTauValSelNeg}{1}
+\newcommand{\ExtTauValSelWorst}{-0.7}
+\newcommand{\ExtTauValSelPickedLargest}{65}
 \newcommand{\ExtTauValSelLargestArm}{ObSign $\tau{=}10^{-2}$}
 \newcommand{\ExtTauOneDecadeCost}{+7.05}
 

@@ -2,7 +2,7 @@
 \begin{table*}[t]
 \centering
 \footnotesize
-\caption{Every arm on the same 216 cells, under both readings. \emph{state} is optimizer state per trainable parameter; adaptation memory is $4N(1+\mathit{state})$ bytes, with $N=85{,}670$ at PatchTST, $L{=}96$, $H{=}24$. The \emph{tuned} columns select the online rate on the held-out pre-drift slice of the shared grid; the \emph{at $10^{-3}$} columns are the same cells with no tuning at all, which is what a device that cannot afford a tuning pass actually gets. \emph{neg} counts cells below the static baseline; diverged cells (benefit $<-100\%$) are excluded from the means and from \emph{worst} but still counted in \emph{neg}. \emph{mis1x} is the benefit lost to a one-decade error in the rate, measured from each arm's own optimum. $\dagger$ marks the state-axis Pareto frontier.}
+\caption{Every arm on the same 216 cells, under both readings of Section~\ref{sec:reqs}. \emph{state} is optimizer state per trainable parameter; adaptation memory is $4N(1+\mathit{state})$ bytes, with $N=85{,}670$ at PatchTST, $L{=}96$, $H{=}24$. \emph{Tuned} selects the online rate on the held-out pre-drift slice; \emph{at $10^{-3}$} is the same cells with no tuning at all. \emph{neg} counts cells below the static baseline, diverged ones (benefit $<-100\%$) included, though those are left out of the means and of \emph{worst}. \emph{mis1x} is the benefit lost to a one-decade error in the rate, from each arm's own optimum. $\dagger$ marks the state-axis Pareto frontier.}
 \label{tab:optimizers}
 \begin{tabular}{llrrrrrr}
 \toprule
@@ -10,15 +10,18 @@
 \cmidrule(lr){3-6}\cmidrule(lr){7-8}
 state & optimizer & benefit \% (95\% CI) & neg & worst \% & mis1x & benefit \% & neg \\
 \midrule
-$0\times$ & ObSign $\tau$=3e-3$^\dagger$ & +14.12 [+12.22, +16.21] & 2 & -4.6 & 2.34 & +13.99 & 10 \\
+$0\times$ & ObSign $\tau{=}3{\cdot}10^{-3}$$^\dagger$ & +14.12 [+12.22, +16.21] & 2 & -4.6 & 2.34 & +13.99 & 10 \\
+ & ObSign $\tau{=}2{\cdot}10^{-3}$ (margin sweep) & +14.07 [+12.18, +16.12] & 1 & -0.7 & 1.80 & \textbf{+14.44} & 3 \\
  & signSGD & +14.07 [+12.19, +16.13] & 1 & -0.3 & 16.57 & -7.92 & 145 \\
- & ObSign $\tau$=1e-2 (guard too loose) & +14.02 [+12.14, +16.10] & 1 & -0.3 & 5.14 & +6.95 & 71 \\
+ & ObSign $\tau{=}5{\cdot}10^{-3}$ (margin sweep) & +14.03 [+12.13, +16.10] & 3 & -8.0 & 3.27 & +12.09 & 26 \\
+ & ObSign $\tau{=}10^{-2}$ (guard too loose) & +14.02 [+12.14, +16.10] & 1 & -0.3 & 5.14 & +6.95 & 71 \\
+ & ObSign $\tau{=}1.5{\cdot}10^{-3}$ (margin sweep) & +13.88 [+12.03, +15.89] & 1 & -0.2 & 1.10 & +14.41 & 1 \\
  & RelSign (no guard) & +13.73 [+11.93, +15.75] & 2 & -4.6 & 12.33 & +14.00 & 0 \\
- & ObSign $\tau$=1e-3 & +13.48 [+11.72, +15.44] & 0 & +0.1 & 0.90 & +14.00 & 0 \\
+ & ObSign $\tau{=}10^{-3}$ & +13.48 [+11.72, +15.44] & 0 & +0.1 & 0.90 & +14.00 & 0 \\
  & SGD & +11.21 [+9.43, +13.17] & 12 & -34.3 & 13.27 & +10.50 & 0 \\
  & ObGD & +9.70 [+8.50, +11.05] & 0 & +0.0 & 0.09 & +9.05 & 0 \\
 \midrule
-$0.54\times$ & AdaFactor & +13.80 [+12.09, +15.65] & 1 & -1.5 & 12.81 & \textbf{+14.03} & 0 \\
+$0.54\times$ & AdaFactor & +13.80 [+12.09, +15.65] & 1 & -1.5 & 12.81 & +14.03 & 0 \\
 \midrule
 $1\times$ & Lion$^\dagger$ & \textbf{+14.64} [+12.62, +16.86] & 3 & -1.6 & 9.32 & -20.14 & 175 \\
  & UPGD & +12.16 [+10.42, +14.10] & 3 & +0.0 & 11.05 & +8.63 & 0 \\

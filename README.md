@@ -119,6 +119,7 @@ python experiments/tsf_edge/test_online_optimizers.py        # the update rules'
 | bracketing fill-in (two top rates; a shared grid is only fair if it brackets every rule's optimum) | `run_stage0_fillin.sh` on two hosts, then `merge_stage0_fillin.py --write` | `stage0_fillin_*.jsonl` | — |
 | seeds 3-4 for the leading rules (216 -> 360 cells) | `run_stage0_seeds.sh`, then `merge_stage0_seeds.py --write` | `stage0_seeds34*.jsonl` | — |
 | the deployment (parameter-efficient) configurations | `run_g2_peft.sh` | `stage0_optimizers_{calib,head}.jsonl` | ~2.5 h |
+| the guard level tau, swept finely enough to locate the no-harm crossing | `run_stage0d.sh` | `stage0d_optimizers.jsonl` | ~7.3 h |
 | comparison with PETSA's modules and loss | `petsa_compare.py` (uses `petsa_calib.py`) | rows inside the PEFT artifacts | — |
 | Table II (deployability at every shipped rate) | `stage0_figs.requirement_table()` | `requirement_table.tex` | seconds |
 | Table III (all rules, both readings) | `stage0_figs.optimizer_table()` | `optimizer_table.tex` | seconds |
@@ -136,10 +137,6 @@ stage files are separate on purpose — every added run got a new prefix rather 
 previous artifact — and `stage0_pool.load_cells()` merges them per cell. `stage0_pool.py` is the
 single implementation of every pooled statistic the paper quotes; the tables, the figures and
 the macros all call it, so they cannot disagree.
-
-A sweep of the guard level tau finer than the three values in `stage0c_optimizers.jsonl` was
-running when this commit was made; its artifact (`stage0d_optimizers.jsonl`) and the runner that
-produces it land with the next sync.
 
 ## Protocol notes (what makes the evaluation fair)
 
