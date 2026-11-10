@@ -281,8 +281,10 @@ def staleness_paper():
                     ax.fill_between(u, mm - s_, mm + s_, color=col, alpha=0.13)
         # label the quantity, not the phenomenon: these are margins over the periodic
         # schedule, not a measure of how much the series drifts.
+        # true minus sign (U+2212), matching the text, the tables and the tick labels
+        pm = lambda v: f"{v:+.1f}".replace("-", "\u2212")
         ax.set_title(f"{PRETTY.get(name, name)}  ($\\Delta$ vs periodic: "
-                     f"{sg[name]['win_pct']:+.1f}% / {ad[name]['win_pct']:+.1f}%)", fontsize=7.2)
+                     f"{pm(sg[name]['win_pct'])}% / {pm(ad[name]['win_pct'])}%)", fontsize=7.2)
         ax.set_xlabel("update fraction"); ax.grid(alpha=0.3)
     axes[0][0].set_ylabel("online MSE")
     handles, labels = axes[0][0].get_legend_handles_labels()
