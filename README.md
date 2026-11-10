@@ -189,10 +189,6 @@ results/tsf_edge/        result artifacts, generated macros and figures
 docs/figs/               README figures, rendered from the tracked *_paper.pdf
 ```
 
-Files named `stage0*`, `online_optimizers.py`, `petsa_*`, `macros_ext.tex` and the remaining
-figures and tables belong to separate work and are not described here. `online_eval.py` imports
-`online_optimizers.py`, so that file is required.
-
 ## Environment
 
 Python 3.11 and the versions pinned in `requirements.txt` (torch 2.7.0+cu126 on one NVIDIA A100

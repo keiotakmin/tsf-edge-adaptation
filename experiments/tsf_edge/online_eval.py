@@ -103,65 +103,13 @@ _WHICH = {"full": "all", "head": "head", "calib": "calib",
 
 
 def make_online_optimizer(okind, params, lr):
-    """Online-optimizer factory. sgd/adam = the paper's pair (torch built-ins, unchanged);
-    then the Stage-0 extension contenders (memory-light / learning-rate-free) and the Stage-0b
-    contenders (optimizers DESIGNED for non-stationary online prediction, online_optimizers.py).
-    See stage0_optimizers.py. For the LR-free family, lr is a multiplier (default 1.0)."""
-    if okind == "sgd":
-        return torch.optim.SGD(params, lr=lr)
-    if okind == "adam":
+    """Online-optimizer factory for the three arms the paper reports."""
+    if okind == "sgd":                               # 0 state (retired from the paper; kept
+        return torch.optim.SGD(params, lr=lr)        # so the pre-migration readings reproduce)
+    if okind == "adam":                              # 2x state
         return torch.optim.Adam(params, lr=lr)
-    if okind == "sgdm":                              # 1x state -- the missing SGD+momentum rung
+    if okind == "sgdm":                              # 1x state -- the paper's SGD-family arm
         return torch.optim.SGD(params, lr=lr, momentum=0.9)
-    if okind in ("idbd", "autostep", "obgd", "adaptive_obgd", "dons", "upgd",
-                 "obsign", "obsign_t5e3", "obsign_t3e3", "obsign_t2e3", "obsign_t1p5e3",
-                 "obsign_t1e3", "relsign"):
-        import online_optimizers as oo               # Stage 0b/0c
-        cls, kw = {
-            "idbd": (oo.IDBD, {}),                   # 2x state, lr = initial step alpha_0
-            "autostep": (oo.Autostep, {}),           # 3x state, scale-robust successor to IDBD
-            "obgd": (oo.ObGD, {}),                   # 0x state, overshoot-bounded
-            "adaptive_obgd": (oo.AdaptiveObGD, {}),  # 1x state
-            "dons": (oo.DiscountedONS, {}),          # 1x state, discounted diagonal Newton
-            "upgd": (oo.UPGD, {}),
-            # Stage 0c, 0x state. tau is the pinned guard level; the three arms MEASURE the
-            # sensitivity to it rather than asserting a default nobody has published.
-            # The six tau values are a SWEEP OF THE KNEE MARGIN, not six candidate defaults:
-            # the knee sits at tau*RMS(p), so on this data they land 0.28 / 0.58 / 0.80 / 0.98 /
-            # 1.10 / 1.28 decades below the 1e-3 the deployment ships. The design rule the paper
-            # states -- keep the knee a decade under the shipped rate -- is a claim about where
-            # the pass/fail boundary in THAT quantity is, and three values could only say it lay
-            # somewhere between 0.80 and 1.28. The three added on 2026-09-04 bracket it.
-            "obsign": (oo.ObSign, dict(tau=1e-2)),
-            "obsign_t5e3": (oo.ObSign, dict(tau=5e-3)),
-            "obsign_t3e3": (oo.ObSign, dict(tau=3e-3)),
-            "obsign_t2e3": (oo.ObSign, dict(tau=2e-3)),
-            "obsign_t1p5e3": (oo.ObSign, dict(tau=1.5e-3)),
-            "obsign_t1e3": (oo.ObSign, dict(tau=1e-3)),
-            "relsign": (oo.RelSign, {}),             # 0x, lr IS the fraction tau
-        }[okind]
-        return cls(params, lr=lr, **kw)
-    if okind == "lion":                              # 1x state (sign-momentum)
-        from lion_pytorch import Lion
-        return Lion(params, lr=lr)
-    if okind == "signsgd":                           # 0 state (sign of grad, no momentum)
-        from pytorch_optimizer import SignSGD
-        return SignSGD(params, lr=lr, momentum=0.0)
-    if okind == "adafactor":                         # sublinear state (factored 2nd moment);
-        from pytorch_optimizer import AdaFactor     # relative_step off so the LR grid applies
-        return AdaFactor(params, lr=lr, relative_step=False)
-    if okind == "prodigy":                           # LR-free (Adam-flavored, ~4x state)
-        from pytorch_optimizer import Prodigy
-        return Prodigy(params, lr=lr)
-    if okind == "dadapt_sgd":                        # LR-free (SGD-flavored)
-        from pytorch_optimizer import DAdaptSGD
-        return DAdaptSGD(params, lr=lr)
-    if okind == "dadapt_adam":                       # LR-free (Adam-flavored)
-        from pytorch_optimizer import DAdaptAdam
-        return DAdaptAdam(params, lr=lr)
-    if okind == "dog":                               # LR-free (distance-over-gradients)
-        from dog import DoG
-        return DoG(params, lr=lr)
     raise ValueError(f"unknown online optimizer {okind!r}")
 
 
@@ -200,7 +148,7 @@ def stream_eval(model, d, backbone, n_warm, L, H, strategy="full_sgd", lr=1e-3,
     stride = H if stride is None else stride
     if strategy in STRATEGIES:
         which, okind, state_mult = STRATEGIES[strategy]
-    else:                       # e.g. "full_lion", "full_prodigy" (stage-0 extension optimizers)
+    else:                       # any other "<subset>_<optimizer>" name, e.g. "head_adam"
         prefix, _, okind = strategy.partition("_")
         which = _WHICH[prefix]
         state_mult = None       # unknown a priori -> measured from opt.state after the stream
