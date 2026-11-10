@@ -25,6 +25,9 @@ plt.rcParams.update({
     "font.size": 7.5, "axes.titlesize": 8, "axes.labelsize": 7.5,
     "xtick.labelsize": 6.5, "ytick.labelsize": 6.5, "legend.fontsize": 6.3,
     "lines.linewidth": 1.1, "lines.markersize": 3.2,
+    # TrueType (Type 42) text instead of matplotlib's default Type 3 glyph procedures: IEEE PDF
+    # eXpress checks the fonts inside included figures too (camera-ready, 2026-11-11).
+    "pdf.fonttype": 42, "ps.fonttype": 42,
 })
 
 
@@ -327,7 +330,9 @@ def regime_paper():
     axA.set_xlabel("online learning rate")
     axA.set_ylabel(f"benefit % (median+IQR, {n} cells)")
     axA.set_title("(A) Empirical nonnegative-benefit ranges\nand the shared default")
-    axA.legend(loc="lower left", framealpha=0.9)
+    # raised clear of the counts row at y=-64: at "lower left" the legend box covered the
+    # "cells < static:" label and the first counts (camera-ready, 2026-11-11)
+    axA.legend(loc="lower left", bbox_to_anchor=(0.01, 0.17), framealpha=0.9)
     axA.grid(alpha=0.3, which="both")
 
     lo, hi, y_floor = -50, 62, -42        # sel benefits below y_floor (incl. the diverged
