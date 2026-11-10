@@ -336,6 +336,55 @@ if os.path.exists(lrf_path):
          sum(r["sel_benefit_adam"] > r[f"oracle_benefit_{SGDF}"] for r in lrf))
     emit("LrSelAdamVsOrc" + SGDN + "MedianPt", s1(_median(
         [r["sel_benefit_adam"] - r[f"oracle_benefit_{SGDF}"] for r in lrf]), nd=2))
+    # (camera-ready, R2) configuration-level paired statistics at the REHEARSED rate. The unit is
+    # the seed-averaged Adam - SGD+m gap of one configuration (dataset x backbone x L x H), so the
+    # five seeds of a configuration are not counted as independent samples. Reported: median gap,
+    # a distribution-free (order-statistic) 95% CI for that median -- deterministic, no resampling
+    # -- and a two-sided Wilcoxon signed-rank test. The configurations still share datasets, so
+    # the prose reads the test descriptively.
+    from math import comb as _comb, erfc as _erfc, sqrt as _sqrt
+    _cg = {}
+    for r in lrf:
+        _cg.setdefault((r["dataset"], r["backbone"], r["L"], r["H"]), []).append(
+            r["sel_benefit_adam"] - r[f"sel_benefit_{SGDF}"])
+    _g = sorted(sum(v) / len(v) for v in _cg.values())
+    _n = len(_g)
+    # CI = [x_(j), x_(n-j+1)] with j the largest rank whose two tails P(Bin(n,1/2) <= j-1) each
+    # stay <= 2.5%, so coverage is >= 95%. Pure Python: the public tree pins no scipy.
+    _cdf = lambda k: sum(_comb(_n, i) for i in range(k + 1)) / 2 ** _n
+    _j = max(k for k in range(1, _n // 2 + 1) if _cdf(k - 1) <= 0.025)
+    emit("LrSelCfgMeanGapMedianPt", s1(_median(_g)))
+    emit("LrSelCfgMeanGapCiLoPt", s1(_g[_j - 1]))
+    emit("LrSelCfgMeanGapCiHiPt", s1(_g[_n - _j]))
+    emit("LrSelCfgMeanGapPosCfgs", sum(x > 0 for x in _g))
+    # two-sided Wilcoxon signed-rank test, normal approximation (n = 72; no continuity
+    # correction; average ranks with the usual tie correction) -- checked against
+    # scipy.stats.wilcoxon when this was written
+    assert all(x != 0 for x in _g)
+    _ab = sorted(abs(x) for x in _g)
+    _rank, _tie, _i = {}, 0.0, 0
+    while _i < _n:
+        _k = _i
+        while _k + 1 < _n and _ab[_k + 1] == _ab[_i]: _k += 1
+        _rank[_ab[_i]] = (_i + _k) / 2 + 1
+        _t = _k - _i + 1
+        _tie += _t ** 3 - _t
+        _i = _k + 1
+    _wp = sum(_rank[abs(x)] for x in _g if x > 0)
+    _z = (_wp - _n * (_n + 1) / 4) / _sqrt(_n * (_n + 1) * (2 * _n + 1) / 24 - _tie / 48)
+    _pw = _erfc(abs(_z) / _sqrt(2))
+    _e = 0
+    while _pw < 1:
+        _pw *= 10; _e -= 1
+    emit("LrSelCfgMeanGapWilcoxonP", f"{round(_pw)}{{\\times}}10^{{{_e}}}")
+    _db = {}
+    for (ds, bb, _L, _H), v in _cg.items():
+        _db.setdefault((ds, bb), []).append(sum(v) / len(v))
+    emit("LrSelDsBbMeanGapPos", sum(sum(v) / len(v) > 0 for v in _db.values()))
+    emit("LrSelDsBbTotal", len(_db))
+    # (camera-ready, R2 "traceable guidance numbers") the recipe says Adam's rehearsed rate is
+    # "typically 1/10 to 1/30 of the default", i.e. 1e-4 or 3e-5: count the cells that pick them
+    emit("LrAdamSelTenthToThirtiethCells", sum(r["sel_lr_adam"] in (3e-5, 1e-4) for r in lrf))
     # pooled three-reading win counts (abstract/intro cite these)
     for rd, get in readings.items():
         b_s = [get(r, SGDF) for r in lrf]
@@ -547,6 +596,38 @@ if wc:
     emit("WcUnderInflMaxPt", s1(max(u_infls)))
     emit("WcOverInflMinPt", s1(min(o_infls)))
     emit("WcOverInflMaxPt", s1(max(o_infls)))
+    # (camera-ready, R2) "6 of 6" is a seed-MEAN direction; the prose now says where it is clear
+    # of seed spread. Per-seed curves are not stored, so the only available yardstick is the
+    # (unpaired) seed std of the two readings an inflation is the difference of: the end budget
+    # and the oracle reference. BDG2/DLinear over-warming sits ON that yardstick (1.11 vs 1.08),
+    # so no resolved/unresolved COUNT is emitted -- a count would hinge on that tie. The prose
+    # instead names the panels by backbone, and these asserts keep its wording true:
+    #   over-warming : PatchTST panels clear of seed std; DLinear panels within 1.5x of it
+    #   under-warming: every panel clear of seed std except Appliances/PatchTST
+    u_others = []
+    for key, r in wc.items():
+        j_ = r["sweet_idx"]
+        sd = r["benefit_std"]
+        u = -(r["under"] - r["sweet"]); o = -(r["over"] - r["sweet"])
+        su, so = max(sd[0], sd[j_]), max(sd[-1], sd[j_])
+        if key.endswith("|patchtst"): assert o > so, (key, o, so)
+        else:                         assert o < 1.5 * so, (key, o, so)
+        if key == "appliances|patchtst": assert u < su, (key, u, su)
+        else:
+            assert u > su, (key, u, su)
+            u_others.append(u)
+    emit("WcUnderInflMinExclApplPatchtstPt", s1(min(u_others)))
+    emit("WcUnderInflApplPatchtstPt", s1(-(wc["appliances|patchtst"]["under"]
+                                           - wc["appliances|patchtst"]["sweet"])))
+    for bb, nm in (("dlinear", "Dlinear"), ("patchtst", "Patchtst")):
+        ov = [-(r["over"] - r["sweet"]) for k, r in wc.items() if k.endswith("|" + bb)]
+        emit("WcOverInfl" + nm + "MinPt", s1(min(ov)))
+        emit("WcOverInfl" + nm + "MaxPt", s1(max(ov)))
+    # (camera-ready, R2) the frontier datasets are described as bracketing the Table I benefits:
+    # ETTm2 lowest and Appliances highest at the oracle reference, for both backbones
+    for bb in ("dlinear", "patchtst"):
+        _sw = {k.split("|")[0]: -r["sweet"] for k, r in wc.items() if k.endswith("|" + bb)}
+        assert min(_sw, key=_sw.get) == "ETTm2" and max(_sw, key=_sw.get) == "appliances", _sw
     # (R3) pre-empt the straw-man reading of the endpoints. 50 steps and 50000 steps are easy to
     # dismiss as budgets nobody would pick; the confound survives without them, so quantify the
     # spread of the reported benefit over the range a practitioner WOULD plausibly consider.
