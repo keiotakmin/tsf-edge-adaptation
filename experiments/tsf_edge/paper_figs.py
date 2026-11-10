@@ -313,6 +313,13 @@ def regime_paper():
         M[~np.isfinite(M)] = -1e9          # diverged stream (nan/-inf) = very negative; the
         med, (q1, q3) = np.median(M, axis=0), np.percentile(M, [25, 75], axis=0)  # curve just
         # leaves the axis (ylim floor) at those rates, and the counts row still includes them
+        # Clip what is DRAWN (not what is counted) far below the axis floor. SGD+m's lower
+        # quartile at the top rate is the -1e9 divergence sentinel (121 of 360 streams diverge
+        # there), and a band polygon with a vertex ~1e9 pt off the page is dropped entirely by
+        # PDFium (Chrome) and poppler -- the whole SGD+m band vanished in those viewers while
+        # pdf.js still drew it. -1e4 is ~90 axis-heights below the floor, so nothing visible moves.
+        FLOOR = -1e4
+        med, q1, q3 = (np.maximum(v, FLOOR) for v in (med, q1, q3))
         axA.plot(lrs, med, "o-", color=COLS[o], label=f"{LABS[o]} (median)", zorder=3)
         axA.fill_between(lrs, q1, q3, color=COLS[o], alpha=0.15)
         for x, ncur in zip(lrs, (M < 0).sum(axis=0)):  # negative-cell counts along the curve

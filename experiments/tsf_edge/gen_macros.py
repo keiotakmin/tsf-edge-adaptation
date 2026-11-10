@@ -69,6 +69,13 @@ def emit(name, val):
     assert re.fullmatch(r"[A-Za-z]+", name), f"bad macro name: {name}"
     assert name not in seen, f"duplicate macro: {name}"
     seen.add(name)
+    # A negative number is emitted with a real minus sign, \ensuremath{-}, not a text hyphen:
+    # "-1.3\%" in running text is set as a hyphen, and TeX may break the line right after it
+    # ("worst value of -" / "1.3%"), which happened twice in the camera-ready. \ensuremath works
+    # in text and in math mode, and no break is possible between it and the digits.
+    val = str(val)
+    if re.fullmatch(r"-\d[\d.,]*", val):
+        val = "\\ensuremath{-}" + val[1:]
     lines.append(f"\\newcommand{{\\{name}}}{{{val}}}")
 
 
